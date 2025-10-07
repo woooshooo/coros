@@ -4,11 +4,26 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Running Stats Analyzer by Web</title>
-    <!-- Load Tailwind CSS (Critical for fast initial render/styling) -->
+    <!-- Load Tailwind CSS Library FIRST -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Load React Core Library FIRST -->
+    
+    <!-- Load Tailwind Configuration SECOND (must run after the library is loaded) -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'dark-bg': '#191919',   // Darker shade for main background
+                        'dark-card': '#232323', // Lighter shade for card/sections
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Load React Core Library THIRD -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <!-- Load ReactDOM SECOND -->
+    <!-- Load ReactDOM FOURTH -->
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <!-- Load Babel for JSX compilation (Largest potential bottleneck) -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -102,9 +117,9 @@
         const MoonIcon = (props) => ( <Icon {...props} path={<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>}/> );
         const ShareIcon = (props) => ( <Icon {...props} path={<><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" x2="12" y1="2" y2="15"/></>}/> );
         const EditIcon = (props) => ( <Icon {...props} path={<path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>}/> );
-        // FIX: Wrapped adjacent JSX elements in a fragment (<>...</>)
+        // FIX: Only one JSX fragment wrapper is used.
         const SaveIcon = (props) => ( <Icon {...props} path={<><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 7 14 7"/></>}/> );
-        // FIX: Wrapped adjacent JSX elements in a fragment (<>...</>)
+        // FIX: Only one JSX fragment wrapper is used.
         const XIcon = (props) => ( <Icon {...props} path={<><path d="M18 6 6 18"/><path d="m6 6 12 12"/></>}/> );
 
 
@@ -194,6 +209,7 @@
 
             // Effects to update edit state when lap props change (e.g., after initial load or image analysis)
             useEffect(() => {
+                // Ensure editLap reflects the current lap's source data when the lap prop changes
                 setEditLap({ 
                     type: lap.type, 
                     distance: lap.rawDistance !== undefined ? lap.rawDistance : parseFloat(lap.distance).toFixed(2), 
@@ -225,7 +241,7 @@
             };
 
             const handleCancel = () => {
-                // Revert to original computed values
+                // Revert to original computed values and exit editing
                 setEditLap({ 
                     type: lap.type, 
                     distance: lap.rawDistance !== undefined ? lap.rawDistance : parseFloat(lap.distance).toFixed(2), 
@@ -242,15 +258,17 @@
             let subtleColor = isDarkMode ? 'text-gray-400' : 'text-gray-500';
 
             if (isTotal) {
-                rowClass = isDarkMode ? 'bg-gray-800 font-bold total-row-bg' : 'bg-gray-200 font-bold total-row-bg'; 
+                // Apply custom dark color
+                rowClass = isDarkMode ? 'bg-dark-bg font-bold total-row-bg' : 'bg-gray-200 font-bold total-row-bg'; 
             } else if (isRest) {
                 rowClass = isDarkMode ? 'text-gray-400' : 'text-gray-600';
                 textColor = isRest ? (isDarkMode ? 'text-gray-400' : 'text-gray-600') : textColor;
             } else {
                 rowClass = textColor;
             }
-
+            
             if (isTotal) {
+                 // Total row display (no editing)
                  return (
                     <div className={`grid grid-cols-12 py-3 px-2 ${rowClass}`} id="total-lap-row">
                         <div className={`col-span-3 text-sm flex items-center ${textColor}`}>{lap.type}</div>
@@ -348,7 +366,7 @@
             const isActive = currentFilter === type;
 
             const activeClass = 'bg-indigo-600 text-white shadow-md';
-            const inactiveDark = 'bg-gray-700 text-gray-300 hover:bg-gray-600';
+            const inactiveDark = 'bg-dark-card text-gray-300 hover:bg-gray-700'; // Using dark-card
             const inactiveLight = 'bg-gray-200 text-gray-700 hover:bg-gray-300';
             
             const inactiveClass = isDarkMode ? inactiveDark : inactiveLight;
@@ -390,16 +408,16 @@
             // NEW: Dark Mode State, defaulting to true
             const [isDarkMode, setIsDarkMode] = useState(true);
 
-            // Theme classes
-            const modeClass = isDarkMode ? 'bg-black text-white' : 'bg-gray-100 text-gray-900 light-mode';
-            const cardClass = isDarkMode ? 'bg-gray-900 shadow-2xl' : 'bg-white shadow-lg border border-gray-200';
-            const sectionHeaderClass = isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-100 border-gray-300';
-            const sectionContentClass = isDarkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-300';
-            const tableHeaderClass = isDarkMode ? 'text-gray-400' : 'text-gray-600'; // Removed border-gray-700/300
+            // Theme classes updated to use custom hex colors
+            const modeClass = isDarkMode ? 'bg-dark-bg text-white' : 'bg-gray-100 text-gray-900 light-mode'; // Darker background
+            const cardClass = isDarkMode ? 'bg-dark-card shadow-2xl' : 'bg-white shadow-lg border border-gray-200'; // Lighter card
+            const sectionHeaderClass = isDarkMode ? 'bg-dark-card border-dark-bg' : 'bg-gray-100 border-gray-300'; // Card surface
+            const sectionContentClass = isDarkMode ? 'bg-dark-card border-dark-bg' : 'bg-white border-gray-300'; // Card surface
+            const tableHeaderClass = isDarkMode ? 'text-gray-400' : 'text-gray-600'; 
             const subtleTextColor = isDarkMode ? 'text-gray-500' : 'text-gray-500';
             const primaryTextColor = isDarkMode ? 'text-white' : 'text-gray-900';
             const inputClass = isDarkMode 
-                ? 'bg-gray-700 border border-gray-600 text-white focus:ring-blue-500 focus:border-blue-500' 
+                ? 'bg-dark-bg border border-gray-600 text-white focus:ring-blue-500 focus:border-blue-500' // Darker input field
                 : 'bg-white border border-gray-300 text-gray-900 focus:ring-blue-500 focus:border-blue-500';
             const errorClass = isDarkMode ? 'bg-red-900 border-red-700 text-red-300' : 'bg-red-100 border-red-400 text-red-800';
 
@@ -466,15 +484,10 @@
 
             // --- Lap Editing Handlers ---
             const handleSaveLap = (index, updatedLap) => {
-                // Find the original lap in the unfiltered array 'laps' based on the filtered lap's properties
-                // This is complex because of filtering. We need to find the matching object in the unfiltered list.
-                
-                // Get the lap object from the currently filtered view
+                // Find the original lap object in the currently filtered view
                 const filteredLapToUpdate = filteredLaps[index];
 
-                // Find the index of this exact object in the unfiltered 'computedLaps'
-                // Note: We cannot use findIndex on 'laps' directly because 'laps' contains raw data, while 'computedLaps' has calculated data.
-                // We must rely on comparing properties that are unique enough, like type, rawDistance, and rawTime.
+                // Find the index of this exact lap object in the UNFILTERED list (computedLaps)
                 const originalIndex = computedLaps.findIndex(lap => 
                     lap.type === filteredLapToUpdate.type &&
                     lap.rawDistance === filteredLapToUpdate.rawDistance && 
@@ -649,7 +662,7 @@
 
                     } catch (error) {
                         console.error("API Error:", error);
-                        setApiError(`Data extraction failed: ${error.message}. Verify your image quality and API Key.`);
+                        alert(`Data extraction failed. Error: ${error.message}. Verify your image quality and API Key.`);
                     } finally {
                         setIsLoading(false);
                     }
@@ -688,16 +701,16 @@
                 document.body.className = '';
 
                 // Temporarily remove card background and shadow
-                const isCurrentlyDark = rootCard.classList.contains('bg-gray-900');
+                const isCurrentlyDark = rootCard.classList.contains('bg-dark-card'); // Check for new dark class
                 const isCurrentlyLight = rootCard.classList.contains('bg-white');
-                if (isCurrentlyDark) rootCard.classList.remove('bg-gray-900', 'shadow-2xl');
+                if (isCurrentlyDark) rootCard.classList.remove('bg-dark-card', 'shadow-2xl');
                 if (isCurrentlyLight) rootCard.classList.remove('bg-white', 'shadow-lg', 'border');
                 
                 // Add temporary class to ensure borders/text remain visible if root is transparent
                 rootCard.classList.add('bg-transparent', 'shadow-none'); 
 
                 // Remove the colored background from the specific Total row element
-                totalRowElement.classList.remove('bg-gray-800', 'bg-gray-200');
+                totalRowElement.classList.remove('bg-dark-bg', 'bg-gray-200'); // Check for new dark class
                 totalRowElement.classList.add('bg-transparent'); 
 
                 // 2. Use html2canvas to capture the element
@@ -716,7 +729,7 @@
 
                         // Restore root card styles
                         rootCard.classList.remove('bg-transparent', 'shadow-none', 'border-none');
-                        if (isCurrentlyDark) rootCard.classList.add('bg-gray-900', 'shadow-2xl');
+                        if (isCurrentlyDark) rootCard.classList.add('bg-dark-card', 'shadow-2xl');
                         if (isCurrentlyLight) rootCard.classList.add('bg-white', 'shadow-lg', 'border');
                         rootCard.className = originalRootClass; // Safest way is to restore original captured class list
                         
@@ -724,8 +737,29 @@
                         document.body.className = originalBodyClass;
 
                         // --- Share Logic: Separate paths for mobile (share) vs desktop (download) ---
-                        if (isMobile && navigator.share && blob) {
-                            // MOBILE: Attempt native share
+
+                        const handleDownloadFallback = (canvas) => {
+                            const image = canvas.toDataURL('image/png');
+                            const link = document.createElement('a');
+                            link.href = image;
+                            link.download = `running-stats-${new Date().toISOString().slice(0, 10)}.png`;
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                        }
+
+                        // A. Attempt Download (Reliable for Desktop, often fails/defaults to file download on mobile)
+                        try {
+                            handleDownloadFallback(canvas);
+                            console.log("Download initiated successfully.");
+                            return; // Stop here if download worked
+                        } catch (e) {
+                            console.error("Direct download failed. Attempting native share as fallback.");
+                        }
+
+
+                        // B. Attempt Native Web Share API (Best for "Save to Photos" on mobile)
+                        if (navigator.share && blob) {
                             const file = new File([blob], `running-stats-${new Date().toISOString().slice(0, 10)}.png`, { type: 'image/png' });
                             
                             try {
@@ -735,14 +769,14 @@
                                     files: [file],
                                 });
                             } catch (error) {
-                                console.error('Native share failed on mobile (Error:', error, '). Falling back to file download.');
-                                handleDownloadFallback(canvas);
+                                console.error('Native share failed or was dismissed. Error:', error);
+                                // No further action, as download was already attempted and failed.
                             }
                         } else {
-                            // DESKTOP/FALLBACK: Trigger download
-                            console.warn("Desktop environment detected or Web Share API not fully supported. Image downloaded.");
-                            handleDownloadFallback(canvas);
+                            console.log("Native Web Share API not supported in this context or by this browser.");
                         }
+
+
                     }, 'image/png');
                 }).catch(err => {
                     console.error("Image capture failed:", err);
@@ -756,17 +790,6 @@
                 });
             };
 
-            const handleDownloadFallback = (canvas) => {
-                const image = canvas.toDataURL('image/png');
-                const link = document.createElement('a');
-                link.href = image;
-                link.download = `running-stats-${new Date().toISOString().slice(0, 10)}.png`;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-            }
-
-
             // --- UI Render ---
             return (
                 <div className={`min-h-screen font-sans p-4 ${modeClass}`}>
@@ -776,7 +799,7 @@
                          <button 
                             onClick={() => setIsDarkMode(!isDarkMode)}
                             className={`p-2 rounded-full transition duration-200 focus:outline-none 
-                                ${isDarkMode ? 'bg-gray-800 text-yellow-400 hover:bg-gray-700' : 'bg-gray-200 text-yellow-600 hover:bg-gray-300'}`}
+                                ${isDarkMode ? 'bg-dark-card text-yellow-400 hover:bg-gray-700' : 'bg-gray-200 text-yellow-600 hover:bg-gray-300'}`}
                             title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
                         >
                             {isDarkMode ? <SunIcon className="w-5 h-5 mr-0"/> : <MoonIcon className="w-5 h-5 mr-0"/>}
@@ -809,7 +832,7 @@
                                 <div className="space-y-3 mt-4">
                                     {/* File Uploader and Analyzer Button */}
                                     <div className="flex space-x-2 items-center">
-                                        <label className="flex-1">
+                                        <label className="flex-1 min-w-0"> {/* FIX: Added min-w-0 to allow shrinkage */}
                                             <input
                                                 type="file"
                                                 accept="image/*"
@@ -827,7 +850,7 @@
                                             type="button"
                                             onClick={processImageWithGemini}
                                             disabled={isLoading || !uploadedImage} 
-                                            className={`w-1/3 py-2 rounded-lg shadow-lg flex items-center justify-center font-medium transition duration-150
+                                            className={`w-28 py-2 rounded-lg shadow-lg flex items-center justify-center font-medium transition duration-150
                                                 ${isLoading || !uploadedImage
                                                     ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
                                                     : 'bg-green-600 hover:bg-green-700 text-white'
@@ -955,19 +978,19 @@
                                 <div className={`grid grid-cols-12 text-xs font-semibold py-2 uppercase ${tableHeaderClass}`}>
                                     {/* Left-aligned Lap */}
                                     <div className="col-span-3 flex items-center">
-                                         <ListOrderedIcon className="w-3 h-3 mr-1"/> Lap
+                                         <ListOrderedIcon className="w-3 h-3 mr-1"/> LAP
                                     </div>
                                     {/* Right-aligned Distance (flex items-center for vertical alignment) */}
                                     <div className="col-span-3 text-right flex items-center justify-end whitespace-nowrap">
-                                        <ActivityIcon className="w-3 h-3 mr-1"/> Distance
+                                        <ActivityIcon className="w-3 h-3 mr-1"/> DISTANCE
                                     </div>
                                     {/* Right-aligned Time (flex items-center for vertical alignment) */}
                                     <div className="col-span-3 text-right flex items-center justify-end whitespace-nowrap">
-                                        <ClockIcon className="w-3 h-3 mr-1"/> Time
+                                        <ClockIcon className="w-3 h-3 mr-1"/> TIME
                                     </div>
                                     {/* Right-aligned Average Pace (flex items-center for vertical alignment) */}
                                     <div className="col-span-3 text-right flex items-center justify-end whitespace-nowrap">
-                                        <StopwatchIcon className="w-3 h-3 mr-1"/> Avg Pace
+                                        <StopwatchIcon className="w-3 h-3 mr-1"/> AVG PACE
                                     </div>
                                 </div>
                             </div>
