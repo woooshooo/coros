@@ -4,27 +4,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Running Stats Analyzer</title>
-    <!-- Load Tailwind CSS -->
+    <!-- Load Tailwind CSS (Critical for fast initial render/styling) -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Load React and ReactDOM -->
+    <!-- Load React Core Library FIRST -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <!-- Load ReactDOM SECOND -->
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <!-- Load Babel for JSX compilation -->
+    <!-- Load Babel for JSX compilation (Largest potential bottleneck) -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Load html2canvas for capturing DOM as image -->
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
     <style>
         /* Define Inter font and ensure dark background */
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #000;
         }
-        /* Custom class for collapse transition */
+        /* Custom class for collapse transition - keeps animation smooth */
         .collapsible {
             transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in-out;
             overflow: hidden;
-        }
-        /* Ensure Average Pace stays on one line */
-        .whitespace-nowrap-forced {
-            white-space: nowrap;
         }
         /* Style the file input for better visual appearance */
         input[type="file"]::file-selector-button {
@@ -40,6 +38,15 @@
         input[type="file"]::file-selector-button:hover {
             background-color: #4b5563; /* gray-600 */
         }
+        /* Light Mode specific file input button style */
+        .light-mode input[type="file"]::file-selector-button {
+            background-color: #E5E7EB; /* gray-200 */
+            color: #1F2937; /* gray-800 */
+            border-color: #D1D5DB; /* gray-300 */
+        }
+        .light-mode input[type="file"]::file-selector-button:hover {
+            background-color: #D1D5DB; /* gray-300 */
+        }
     </style>
 </head>
 <body>
@@ -48,7 +55,7 @@
     <script type="text/babel">
         const { useState, useMemo, useEffect } = React;
 
-        // --- Inline SVG Icons (Replaces lucide-react imports) ---
+        // --- Inline SVG Icons (Optimized for minimal DOM changes) ---
 
         const Icon = ({ path, className = "w-4 h-4 mr-2" }) => (
             <svg 
@@ -67,80 +74,23 @@
             </svg>
         );
 
-        const RefreshCwIcon = (props) => (
-            <Icon {...props} path={<>
-                <path d="M23 4v6h-6"/>
-                <path d="M2 12s2-2 4-2h12s4 2 4 2"/>
-                <path d="M1 20v-6h6"/>
-                <path d="M22 12s-2 2-4 2H6s-4-2-4-2"/>
-            </>}/>
-        );
-        const PlayIcon = (props) => (
-            <Icon {...props} path={<polygon points="6 3 20 12 6 21 6 3"/>}/>
-        );
-        const BarChartIcon = (props) => (
-            <Icon {...props} path={<>
-                <line x1="12" x2="12" y1="20" y2="10"/>
-                <line x1="18" x2="18" y1="20" y2="4"/>
-                <line x1="6" x2="6" y1="20" y2="16"/>
-            </>}/>
-        );
-        const UploadIcon = (props) => (
-            <Icon {...props} path={<>
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="17 8 12 3 7 8"/>
-                <line x1="12" x2="12" y1="3" y2="15"/>
-            </>}/>
-        );
-        const Loader2Icon = (props) => (
-            <Icon {...props} path={<path d="M21 12a9 9 0 1 1-6.219-8.56"/>}/>
-        );
-        const ImageIcon = (props) => (
-            <Icon {...props} path={<>
-                <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>
-                <circle cx="9" cy="9" r="2"/>
-                <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
-            </>}/>
-        );
-        const FilterIcon = (props) => (
-            <Icon {...props} path={<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>}/>
-        );
-        const ChevronDownIcon = (props) => (
-            <Icon {...props} path={<path d="m6 9 6 6 6-6"/>}/>
-        );
-        const ChevronUpIcon = (props) => (
-            <Icon {...props} path={<path d="m18 15-6-6-6 6"/>}/>
-        );
-        const ClockIcon = (props) => (
-            <Icon {...props} path={<>
-                <circle cx="12" cy="12" r="10"/>
-                <polyline points="12 6 12 12 16 14"/>
-            </>}/>
-        );
-        const GaugeIcon = (props) => (
-            <Icon {...props} path={<>
-                <path d="m12 14c1.1 0 2-.9 2-2s-.9-2-2-2s-2 .9-2 2s.9 2 2 2"/>
-                <path d="M22 12h-4"/>
-                <path d="M6 12H2"/>
-                <path d="m20 16.2-1.4-1.4"/>
-                <path d="M4 7.8 5.4 9.2"/>
-                <path d="m16.2 20-1.4-1.4"/>
-                <path d="M9.2 4 7.8 5.4"/>
-            </>}/>
-        );
-        const ActivityIcon = (props) => (
-            <Icon {...props} path={<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>}/>
-        );
-        const ListOrderedIcon = (props) => (
-            <Icon {...props} path={<>
-                <line x1="10" x2="21" y1="6" y2="6"/>
-                <line x1="10" x2="21" y1="12" y2="12"/>
-                <line x1="10" x2="21" y1="18" y2="18"/>
-                <path d="M4 6h1.5v-1a.5.5 0 0 0-.5-.5H3"/>
-                <path d="M3 10.8V12a1 1 0 0 0 1 1h2"/>
-                <path d="M3 18h2.5c.5 0 .5.5.5 1s-.5 1-.5 1H3"/>
-            </>}/>
-        );
+        // Define icons only once for use throughout the component
+        const RefreshCwIcon = (props) => ( <Icon {...props} path={<><path d="M23 4v6h-6"/><path d="M2 12s2-2 4-2h12s4 2 4 2"/><path d="M1 20v-6h6"/><path d="M22 12s-2 2-4 2H6s-4-2-4-2"/></>}/> );
+        const PlayIcon = (props) => ( <Icon {...props} path={<polygon points="6 3 20 12 6 21 6 3"/>}/> );
+        const BarChartIcon = (props) => ( <Icon {...props} path={<><line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/></>}/> );
+        const UploadIcon = (props) => ( <Icon {...props} path={<><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></>}/> );
+        const Loader2Icon = (props) => ( <Icon {...props} path={<path d="M21 12a9 9 0 1 1-6.219-8.56"/>}/> );
+        const ImageIcon = (props) => ( <Icon {...props} path={<><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></>}/> );
+        const FilterIcon = (props) => ( <Icon {...props} path={<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>}/> );
+        const ChevronDownIcon = (props) => ( <Icon {...props} path={<path d="m6 9 6 6 6-6"/>}/> );
+        const ChevronUpIcon = (props) => ( <Icon {...props} path={<path d="m18 15-6-6-6 6"/>}/> );
+        const ClockIcon = (props) => ( <Icon {...props} path={<><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></>}/> );
+        const StopwatchIcon = (props) => ( <Icon {...props} path={<><circle cx="12" cy="13" r="10"/><path d="M12 2v2"/><path d="m4.9 4.9 1.4 1.4"/><path d="m19.1 4.9-1.4 1.4"/><path d="M15 13H12V9"/></>}/> );
+        const ActivityIcon = (props) => ( <Icon {...props} path={<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>}/> );
+        const ListOrderedIcon = (props) => ( <Icon {...props} path={<><line x1="10" x2="21" y1="6" y2="6"/><line x1="10" x2="21" y1="12" y2="12"/><line x1="10" x2="21" y1="18" y2="18"/><path d="M4 6h1.5v-1a.5.5 0 0 0-.5-.5H3"/><path d="M3 10.8V12a1 1 0 0 0 1 1h2"/><path d="M3 18h2.5c.5 0 .5.5.5 1s-.5 1-.5 1H3"/></>}/> );
+        const SunIcon = (props) => ( <Icon {...props} path={<><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></>}/> );
+        const MoonIcon = (props) => ( <Icon {...props} path={<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>}/> );
+        const ShareIcon = (props) => ( <Icon {...props} path={<><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" x2="12" y1="2" y2="15"/></>}/> );
 
         // --- Utility Functions for Time and Pace Calculation ---
 
@@ -154,11 +104,10 @@
             const cleanedStr = timeStr.trim();
             if (!cleanedStr) return 0;
 
-            // Check if the input is a single number (no colon) and treat as minutes (per user request)
             if (!cleanedStr.includes(':')) {
                 const minutes = parseFloat(cleanedStr);
                 if (!isNaN(minutes)) {
-                    return minutes * 60; // Convert minutes to seconds
+                    return minutes * 60;
                 }
             }
 
@@ -166,10 +115,8 @@
             let totalSeconds = 0;
 
             if (parts.length === 3) {
-                // H:MM:SS.SS
                 totalSeconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
             } else if (parts.length === 2) {
-                // MM:SS.SS
                 totalSeconds = parts[0] * 60 + parts[1];
             }
             
@@ -188,9 +135,7 @@
             const minutes = Math.floor((totalSeconds % 3600) / 60);
             const seconds = totalSeconds % 60;
 
-            // Pad the seconds part to ensure SS.ss format
             const formatTime = (time) => time.toFixed(2).padStart(5, '0');
-            // Pad the minutes part to ensure MM format if hours are present
             const formatMinutes = (min) => String(min).padStart(2, '0');
 
             if (hours > 0) {
@@ -211,26 +156,44 @@
 
             const paceSecondsPerKm = timeSeconds / distanceKm;
             const minutes = Math.floor(paceSecondsPerKm / 60);
-            const seconds = Math.round(paceSecondsPerKm % 60); // Round to nearest second for display
+            const seconds = Math.round(paceSecondsPerKm % 60);
 
             return `${minutes}'${String(seconds).padStart(2, '0')}"/km`;
         };
 
         // --- Component: Lap Row ---
 
-        const LapRow = ({ lap, index, isTotal = false }) => {
+        const LapRow = ({ lap, index, isTotal = false, isDarkMode }) => {
             const isRest = lap.type === 'Rest';
-            const rowClass = isTotal ? 'bg-gray-800 font-bold' : isRest ? 'text-gray-400' : 'text-white';
-            const paceColor = 'text-white'; 
+            
+            let rowClass;
+            let paceColor = isDarkMode ? 'text-white' : 'text-gray-900';
+            let textColor = isDarkMode ? 'text-white' : 'text-gray-900';
+            let subtleColor = isDarkMode ? 'text-gray-400' : 'text-gray-500';
+
+            if (isTotal) {
+                // Apply background class specific to total row
+                rowClass = isDarkMode ? 'bg-gray-800 font-bold total-row-bg' : 'bg-gray-200 font-bold total-row-bg'; 
+            } else if (isRest) {
+                rowClass = isDarkMode ? 'text-gray-400' : 'text-gray-600';
+                textColor = isRest ? (isDarkMode ? 'text-gray-400' : 'text-gray-600') : textColor;
+            } else {
+                rowClass = textColor;
+            }
+            
+            // NOTE: Removed borderColor and border-b classes for cleaner table look
 
             return (
-                <div className={`grid grid-cols-12 py-3 px-2 border-b border-gray-700 ${rowClass}`}>
-                    <div className="col-span-3 text-sm flex items-center">
-                        <span className="w-4 mr-2 text-gray-500">{isTotal ? '' : index + 1}</span>
+                // Used unique ID only for the total row container for easier targeting
+                <div className={`grid grid-cols-12 py-3 px-2 ${rowClass}`}
+                     id={isTotal ? 'total-lap-row' : undefined}
+                >
+                    <div className={`col-span-3 text-sm flex items-center ${textColor}`}>
+                        <span className={`w-4 mr-2 ${subtleColor}`}>{isTotal ? '' : index + 1}</span>
                         <span>{lap.type}</span>
                     </div>
-                    <div className="col-span-3 text-sm text-right">{lap.distance ? `${parseFloat(lap.distance).toFixed(2)} km` : '--'}</div>
-                    <div className="col-span-3 text-sm text-right">{lap.time || '--'}</div>
+                    <div className={`col-span-3 text-sm text-right ${textColor}`}>{lap.distance ? `${parseFloat(lap.distance).toFixed(2)} km` : '--'}</div>
+                    <div className={`col-span-3 text-sm text-right ${textColor}`}>{lap.time || '--'}</div>
                     <div className={`col-span-3 text-sm text-right ${paceColor}`}>
                         {lap.pace || (isRest ? '--/km' : '--')}
                     </div>
@@ -240,13 +203,20 @@
 
         // --- Component: Filter Button ---
 
-        const FilterButton = ({ type, currentFilter, setFilter, label }) => {
+        const FilterButton = ({ type, currentFilter, setFilter, label, isDarkMode }) => {
             const isActive = currentFilter === type;
+
+            const activeClass = 'bg-indigo-600 text-white shadow-md';
+            const inactiveDark = 'bg-gray-700 text-gray-300 hover:bg-gray-600';
+            const inactiveLight = 'bg-gray-200 text-gray-700 hover:bg-gray-300';
+            
+            const inactiveClass = isDarkMode ? inactiveDark : inactiveLight;
+
             return (
                 <button
                     onClick={() => setFilter(type)}
                     className={`flex-1 py-2 px-1 rounded-lg font-medium transition duration-150 whitespace-nowrap ${
-                        isActive ? 'bg-indigo-600 text-white shadow-md' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                        isActive ? activeClass : inactiveClass
                     }`}
                 >
                     {label}
@@ -255,8 +225,6 @@
         };
 
         // --- Main Application Component ---
-        
-        // Removed API_KEY_STORAGE_KEY since the input field is removed.
 
         const App = () => {
             const [laps, setLaps] = useState([]);
@@ -266,35 +234,38 @@
                 time: '',
             });
             
-            // State for Image Upload functionality
-            const [uploadedImage, setUploadedImage] = useState(null); // Stores file reference
+            const [uploadedImage, setUploadedImage] = useState(null);
             const [isLoading, setIsLoading] = useState(false);
             const [apiError, setApiError] = useState('');
             
-            // API Key is now an internal placeholder. If you deploy this publicly,
-            // REPLACE the empty string below with your actual Gemini API Key, 
-            // understanding the security risk of exposing it client-side.
-            const [apiKey, setApiKey] = useState("AIzaSyAt_eZoxQ2jjZTizFeNWUWcc97DnutbhYg"); 
+            // Hardcoded API Key: WARNING - EXPOSED CLIENT-SIDE
+            const [apiKey] = useState("AIzaSyAt_eZoxQ2jjZTizFeNWUWcc97DnutbhYg"); 
             
-            // State for Filtering - initial value is 'All'
             const [filterType, setFilterType] = useState('All'); 
-            
-            // State for collapsing the manual input form (collapsed by default)
             const [isInputExpanded, setIsInputExpanded] = useState(false); 
-            
-            // State for collapsing the image upload form (collapsed by default)
             const [isUploadExpanded, setIsUploadExpanded] = useState(false);
             
-            // --- API Key Persistence Logic (Removed) ---
-            // useEffect and handleApiKeyChange are removed as the input field is hidden.
-            // ------------------------------------------
+            // NEW: Dark Mode State, defaulting to true
+            const [isDarkMode, setIsDarkMode] = useState(true);
+
+            // Theme classes
+            const modeClass = isDarkMode ? 'bg-black text-white' : 'bg-gray-100 text-gray-900 light-mode';
+            const cardClass = isDarkMode ? 'bg-gray-900 shadow-2xl' : 'bg-white shadow-lg border border-gray-200';
+            const sectionHeaderClass = isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-100 border-gray-300';
+            const sectionContentClass = isDarkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-300';
+            const tableHeaderClass = isDarkMode ? 'text-gray-400' : 'text-gray-600'; // Removed border-gray-700/300
+            const subtleTextColor = isDarkMode ? 'text-gray-500' : 'text-gray-500';
+            const primaryTextColor = isDarkMode ? 'text-white' : 'text-gray-900';
+            const inputClass = isDarkMode 
+                ? 'bg-gray-700 border border-gray-600 text-white focus:ring-blue-500 focus:border-blue-500' 
+                : 'bg-white border border-gray-300 text-gray-900 focus:ring-blue-500 focus:border-blue-500';
+            const errorClass = isDarkMode ? 'bg-red-900 border-red-700 text-red-300' : 'bg-red-100 border-red-400 text-red-800';
 
 
             // --- Computed Run Data (Unfiltered Laps with calculations) ---
             const computedLaps = useMemo(() => {
                 return laps.map(lap => {
-                    // Ensure lap.distance is treated as a number for calculation
-                    const dist = parseFloat(lap.distance); 
+                    const dist = parseFloat(lap.distance) || 0; 
                     const timeSec = timeToSeconds(lap.time);
                     const pace = calculatePace(timeSec, dist);
                     const formattedTime = secondsToTimeString(timeSec);
@@ -303,9 +274,8 @@
                         ...lap, 
                         timeSec, 
                         pace,
-                        // Use the formatted time string for display in the table
                         time: formattedTime,
-                        distance: dist // Ensure distance is stored as number for consistent rendering
+                        distance: dist
                     };
                 });
             }, [laps]);
@@ -317,11 +287,10 @@
                 if (filterType === 'All') {
                     return computedLaps;
                 } 
-                // Filter based on the exact type set in filterType
                 if (allFilterableTypes.includes(filterType)) {
                      return computedLaps.filter(lap => lap.type === filterType);
                 }
-                return computedLaps; // Fallback to all
+                return computedLaps;
             }, [computedLaps, filterType]);
 
 
@@ -364,7 +333,7 @@
                     setLaps(prev => [...prev, {
                         type: newLap.type,
                         distance: dist,
-                        time: time, // Raw time string is stored, formatted time used for display
+                        time: time,
                     }]);
                     setNewLap({ type: 'Run', distance: '', time: '' });
                 } else {
@@ -387,9 +356,13 @@
             };
 
             const processImageWithGemini = async () => {
-                // Removed API Key check, assuming user has hardcoded it or the environment provides it.
                 if (!uploadedImage) {
                     setApiError("Please upload an image first.");
+                    setTimeout(() => setApiError(''), 3000);
+                    return;
+                }
+                if (!apiKey) {
+                    setApiError("API Key is missing in the code. Image analysis will fail.");
                     setTimeout(() => setApiError(''), 3000);
                     return;
                 }
@@ -440,9 +413,6 @@
                         }
                     };
                     
-                    // The API key is taken from the state, which is initialized to "" (the secure default).
-                    // For public deployment, you must replace the initialization of apiKey above 
-                    // with your actual key, or the image analysis will fail.
                     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`; 
 
                     try {
@@ -461,11 +431,12 @@
                                 break;
                             }
                             if (i < maxRetries - 1) {
+                                // Exponential backoff to handle throttling
                                 console.warn(`API call failed (status: ${response.status}). Retrying in ${delay}ms...`);
                                 await new Promise(resolve => setTimeout(resolve, delay));
-                                delay *= 2; // Exponential backoff
+                                delay *= 2; 
                             } else {
-                                throw new Error(`API failed after ${maxRetries} attempts. Check your key and network connection.`);
+                                throw new Error(`API failed after ${maxRetries} attempts.`);
                             }
                         }
                         
@@ -475,11 +446,15 @@
                         if (jsonText) {
                             const extractedLaps = JSON.parse(jsonText);
                             if (Array.isArray(extractedLaps)) {
-                                setLaps(extractedLaps.map(lap => ({
-                                    type: lap.type || 'Run',
-                                    distance: lap.distance || 0,
-                                    time: lap.time || '0:00.00'
-                                })));
+                                // Add new laps to existing list
+                                setLaps(prev => [
+                                    ...prev, 
+                                    ...extractedLaps.map(lap => ({
+                                        type: lap.type || 'Run',
+                                        distance: lap.distance || 0,
+                                        time: lap.time || '0:00.00'
+                                    }))
+                                ]);
                             } else {
                                 throw new Error("Extraction returned invalid data format.");
                             }
@@ -489,7 +464,7 @@
 
                     } catch (error) {
                         console.error("API Error:", error);
-                        setApiError(`Data extraction failed: ${error.message}. Please verify your API Key and try a different image.`);
+                        setApiError(`Data extraction failed: ${error.message}. Verify your image quality and API Key.`);
                     } finally {
                         setIsLoading(false);
                     }
@@ -499,21 +474,110 @@
                     setApiError("Error reading the image file.");
                 };
             };
+            
+            // --- Share Image Handler ---
+            const handleShareImage = () => {
+                const input = document.getElementById('share-target-content');
+                const totalRowElement = document.getElementById('total-lap-row'); // The specific total lap row
+                const rootCard = document.getElementById('stats-card');
+                
+                if (!input || !rootCard || !totalRowElement) {
+                    setApiError("Error finding capture area.");
+                    return;
+                }
+
+                // 1. Temporarily save and change styles for screenshot
+                const originalRootClass = rootCard.className;
+                const originalBodyBg = document.body.style.backgroundColor;
+                const originalBodyClass = document.body.className;
+                const originalTotalRowClass = totalRowElement.className;
+
+                // Remove background/shadow from body and card for transparency
+                document.body.style.backgroundColor = 'transparent';
+                document.body.className = '';
+
+                // Temporarily remove card background and shadow
+                const isCurrentlyDark = rootCard.classList.contains('bg-gray-900');
+                const isCurrentlyLight = rootCard.classList.contains('bg-white');
+                if (isCurrentlyDark) rootCard.classList.remove('bg-gray-900', 'shadow-2xl');
+                if (isCurrentlyLight) rootCard.classList.remove('bg-white', 'shadow-lg', 'border');
+                
+                // Add temporary class to ensure borders/text remain visible if root is transparent
+                rootCard.classList.add('bg-transparent', 'shadow-none'); 
+
+                // Remove the colored background from the specific Total row element
+                totalRowElement.classList.remove('bg-gray-800', 'bg-gray-200');
+                totalRowElement.classList.add('bg-transparent'); 
+
+                // 2. Use html2canvas to capture the element
+                html2canvas(input, {
+                    scale: 3, // Higher scale for better resolution
+                    useCORS: true,
+                    backgroundColor: null, // Critical for transparent PNG output
+                    allowTaint: true
+                }).then(canvas => {
+                    // 3. Restore original styles immediately
+
+                    // Restore total row styles
+                    totalRowElement.className = originalTotalRowClass;
+
+                    // Restore root card styles
+                    rootCard.classList.remove('bg-transparent', 'shadow-none', 'border-none');
+                    if (isCurrentlyDark) rootCard.classList.add('bg-gray-900', 'shadow-2xl');
+                    if (isCurrentlyLight) rootCard.classList.add('bg-white', 'shadow-lg', 'border');
+                    rootCard.className = originalRootClass; // Safest way is to restore original captured class list
+                    
+                    document.body.style.backgroundColor = originalBodyBg;
+                    document.body.className = originalBodyClass;
+
+                    // 4. Convert canvas to PNG and trigger download
+                    const image = canvas.toDataURL('image/png');
+                    const link = document.createElement('a');
+                    link.href = image;
+                    link.download = `running-stats-${new Date().toISOString().slice(0, 10)}.png`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                }).catch(err => {
+                    console.error("Image capture failed:", err);
+                    setApiError("Failed to generate image. Try another browser.");
+                    
+                    // Always restore styles even on error
+                    totalRowElement.className = originalTotalRowClass;
+                    rootCard.className = originalRootClass;
+                    document.body.style.backgroundColor = originalBodyBg;
+                    document.body.className = originalBodyClass;
+                });
+            };
+
 
             // --- UI Render ---
             return (
-                <div className="min-h-screen bg-black text-white font-sans p-4">
-                    <div className="max-w-md mx-auto bg-gray-900 rounded-xl shadow-2xl overflow-hidden">
+                <div className={`min-h-screen font-sans p-4 ${modeClass}`}>
+
+                    {/* Theme Toggle Button */}
+                    <div className="max-w-md mx-auto flex justify-end mb-4">
+                         <button 
+                            onClick={() => setIsDarkMode(!isDarkMode)}
+                            className={`p-2 rounded-full transition duration-200 focus:outline-none 
+                                ${isDarkMode ? 'bg-gray-800 text-yellow-400 hover:bg-gray-700' : 'bg-gray-200 text-yellow-600 hover:bg-gray-300'}`}
+                            title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+                        >
+                            {isDarkMode ? <SunIcon className="w-5 h-5 mr-0"/> : <MoonIcon className="w-5 h-5 mr-0"/>}
+                        </button>
+                    </div>
+
+                    <div id="stats-card" className={`max-w-md mx-auto rounded-xl overflow-hidden ${cardClass}`}>
                         
                         {/* Image Upload Section (Collapsible) */}
-                        <div className="p-4 bg-gray-800 border-b border-gray-700">
+                        <div className={`p-4 border-b ${sectionHeaderClass}`}>
                             <button 
                                 onClick={() => setIsUploadExpanded(!isUploadExpanded)}
-                                className="w-full flex justify-between items-center text-lg font-semibold text-white focus:outline-none"
+                                className={`w-full flex justify-between items-center text-lg font-semibold focus:outline-none ${primaryTextColor}`}
                                 aria-expanded={isUploadExpanded}
                             >
                                 <span className="flex items-center">
-                                    <ImageIcon className="w-4 h-4 mr-2 text-green-400"/> Upload Stats Image
+                                    <ImageIcon className="w-4 h-4 mr-2 text-green-400" stroke={isDarkMode ? 'currentColor' : '#10B981'}/> Upload Stats Image
                                 </span>
                                 {isUploadExpanded ? <ChevronUpIcon className="w-5 h-5 text-green-400"/> : <ChevronDownIcon className="w-5 h-5 text-green-400"/>}
                             </button>
@@ -527,14 +591,6 @@
                                 }}
                             >
                                 <div className="space-y-3 mt-4">
-                                    {/* API Key input field removed as requested */}
-                                    
-                                    {/* Informational message for where to hardcode the key */}
-                                    {/*
-                                    <p className="text-sm text-gray-400 italic">
-                                        Note: API Key must be set directly in the code (around line 276) for public deployment.
-                                    </p>
-                                    */}
                                     {/* File Uploader and Analyzer Button */}
                                     <div className="flex space-x-2 items-center">
                                         <label className="flex-1">
@@ -545,7 +601,7 @@
                                                 className="block w-full text-sm text-gray-400"
                                             />
                                             {uploadedImage && (
-                                                <p className="mt-2 text-xs text-gray-400 truncate">
+                                                <p className={`mt-2 text-xs ${subtleTextColor} truncate`}>
                                                     File selected: {uploadedImage.name}
                                                 </p>
                                             )}
@@ -554,7 +610,7 @@
                                         <button
                                             type="button"
                                             onClick={processImageWithGemini}
-                                            disabled={isLoading || !uploadedImage} // API Key check removed from UI logic
+                                            disabled={isLoading || !uploadedImage} 
                                             className={`w-1/3 py-2 rounded-lg shadow-lg flex items-center justify-center font-medium transition duration-150
                                                 ${isLoading || !uploadedImage
                                                     ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
@@ -578,20 +634,20 @@
 
                         {/* API Error Message */}
                         {apiError && (
-                            <div className="p-3 mx-4 my-2 bg-red-900 border border-red-700 rounded-lg text-sm text-red-300 font-medium">
+                            <div className={`p-3 mx-4 my-2 rounded-lg text-sm font-medium ${errorClass}`}>
                                 {apiError}
                             </div>
                         )}
                         
                         {/* Manual Lap Input Form (with Collapse/Expand) */}
-                        <div className="p-4 bg-gray-900 border-t border-gray-800">
+                        <div className={`p-4 border-t ${sectionContentClass}`}>
                             <button 
                                 onClick={() => setIsInputExpanded(!isInputExpanded)}
-                                className="w-full flex justify-between items-center text-lg font-semibold text-white focus:outline-none"
+                                className={`w-full flex justify-between items-center text-lg font-semibold focus:outline-none ${primaryTextColor}`}
                                 aria-expanded={isInputExpanded}
                             >
                                 <span className="flex items-center">
-                                    <BarChartIcon className="w-4 h-4 mr-2 text-blue-400"/> Add New Lap Manually
+                                    <BarChartIcon className="w-4 h-4 mr-2 text-blue-400" stroke={isDarkMode ? 'currentColor' : '#3B82F6'}/> Add New Lap Manually
                                 </span>
                                 {isInputExpanded ? <ChevronUpIcon className="w-5 h-5 text-blue-400"/> : <ChevronDownIcon className="w-5 h-5 text-blue-400"/>}
                             </button>
@@ -610,7 +666,7 @@
                                             name="type"
                                             value={newLap.type}
                                             onChange={handleInputChange}
-                                            className="w-1/3 p-2 bg-gray-700 border border-gray-600 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500"
+                                            className={`w-1/3 p-2 rounded-lg text-sm ${inputClass}`}
                                         >
                                             <option>Run</option>
                                             <option>Rest</option>
@@ -624,7 +680,7 @@
                                             onChange={handleInputChange}
                                             placeholder="Distance (km)"
                                             step="0.01"
-                                            className="w-1/3 p-2 bg-gray-700 border border-gray-600 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500"
+                                            className={`w-1/3 p-2 rounded-lg text-sm ${inputClass}`}
                                         />
                                         <input
                                             type="text"
@@ -632,7 +688,7 @@
                                             value={newLap.time}
                                             onChange={handleInputChange}
                                             placeholder="Time (M or M:SS.SS)"
-                                            className="w-1/3 p-2 bg-gray-700 border border-gray-600 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500"
+                                            className={`w-1/3 p-2 rounded-lg text-sm ${inputClass}`}
                                         />
                                     </div>
                                     <div className="flex space-x-2">
@@ -655,72 +711,89 @@
                         </div>
                         
                         {/* LAP FILTERING SECTION */}
-                        <div className="p-4 bg-gray-800 border-t border-b border-gray-700">
-                            <h2 className="text-sm font-semibold mb-3 flex items-center text-white uppercase tracking-wider">
-                                <FilterIcon className="w-4 h-4 mr-2 text-indigo-400"/> Filter Laps View
+                        <div className={`p-4 border-t border-b ${sectionHeaderClass}`}>
+                            <h2 className={`text-sm font-semibold mb-3 flex items-center uppercase tracking-wider ${primaryTextColor}`}>
+                                <FilterIcon className="w-4 h-4 mr-2 text-indigo-400" stroke={isDarkMode ? 'currentColor' : '#8B5CF6'}/> Filter Laps View
                             </h2>
                             {/* Filter buttons re-arranged as requested: Warm Up, Run, Rest, Cool Down */}
                             <div className="flex space-x-1 text-xs justify-between">
-                                <FilterButton type="All" currentFilter={filterType} setFilter={setFilterType} label="All" />
-                                <FilterButton type="Warm Up" currentFilter={filterType} setFilter={setFilterType} label="Warm Up" />
-                                <FilterButton type="Run" currentFilter={filterType} setFilter={setFilterType} label="Run" />
-                                <FilterButton type="Rest" currentFilter={filterType} setFilter={setFilterType} label="Rest" />
-                                <FilterButton type="Cool Down" currentFilter={filterType} setFilter={setFilterType} label="Cool Down" />
+                                <FilterButton type="All" currentFilter={filterType} setFilter={setFilterType} label="All" isDarkMode={isDarkMode} />
+                                <FilterButton type="Warm Up" currentFilter={filterType} setFilter={setFilterType} label="Warm Up" isDarkMode={isDarkMode} />
+                                <FilterButton type="Run" currentFilter={filterType} setFilter={setFilterType} label="Run" isDarkMode={isDarkMode} />
+                                <FilterButton type="Rest" currentFilter={filterType} setFilter={setFilterType} label="Rest" isDarkMode={isDarkMode} />
+                                <FilterButton type="Cool Down" currentFilter={filterType} setFilter={setFilterType} label="Cool Down" isDarkMode={isDarkMode} />
                             </div>
                         </div>
 
-                        {/* Lap Table Header */}
-                        <div className="px-4 pt-4">
-                            <div className="grid grid-cols-12 text-xs font-semibold text-gray-400 py-2 border-b border-gray-700 uppercase">
-                                {/* Left-aligned Lap */}
-                                <div className="col-span-3 flex items-center">
-                                     <ListOrderedIcon className="w-3 h-3 mr-1"/> Lap
-                                </div>
-                                {/* Right-aligned Distance */}
-                                <div className="col-span-3 text-right flex items-center justify-end">
-                                    <ActivityIcon className="w-3 h-3 mr-1"/> Distance
-                                </div>
-                                {/* Right-aligned Time */}
-                                <div className="col-span-3 text-right flex items-center justify-end">
-                                    <ClockIcon className="w-3 h-3 mr-1"/> Time
-                                </div>
-                                {/* Right-aligned Average Pace (Ensured single line with whitespace-nowrap) */}
-                                <div className="col-span-3 text-right flex items-center justify-end">
-                                    <GaugeIcon className="w-3 h-3 mr-1"/>
-                                    <span className="whitespace-nowrap-forced">Avg Pace</span>
+                        {/* NEW CONTAINER: CAPTURE TARGET for PNG export */}
+                        <div id="share-target-content">
+
+                            {/* Lap Table Header */}
+                            <div className="px-4 pt-4">
+                                <div className={`grid grid-cols-12 text-xs font-semibold py-2 uppercase ${tableHeaderClass}`}>
+                                    {/* Left-aligned Lap */}
+                                    <div className="col-span-3 flex items-center">
+                                         <ListOrderedIcon className="w-3 h-3 mr-1"/> Lap
+                                    </div>
+                                    {/* Right-aligned Distance (flex items-center for vertical alignment) */}
+                                    <div className="col-span-3 text-right flex items-center justify-end whitespace-nowrap">
+                                        <ActivityIcon className="w-3 h-3 mr-1"/> Distance
+                                    </div>
+                                    {/* Right-aligned Time (flex items-center for vertical alignment) */}
+                                    <div className="col-span-3 text-right flex items-center justify-end whitespace-nowrap">
+                                        <ClockIcon className="w-3 h-3 mr-1"/> Time
+                                    </div>
+                                    {/* Right-aligned Average Pace (flex items-center for vertical alignment) */}
+                                    <div className="col-span-3 text-right flex items-center justify-end whitespace-nowrap">
+                                        <StopwatchIcon className="w-3 h-3 mr-1"/> Avg Pace
+                                    </div>
                                 </div>
                             </div>
-                        </div>
 
-                        {/* Lap Table Rows (Dynamic height) */}
-                        <div className="px-4">
-                            {filteredLaps.map((lap, index) => (
-                                <LapRow key={index} lap={lap} index={index} />
-                            ))}
-                            {filteredLaps.length === 0 && !isLoading && (
-                                <p className="text-center text-gray-500 py-8">No laps recorded yet or no laps match the current filter criteria.</p>
-                            )}
-                        </div>
-
-                        {/* Totals Summary (Fixed at bottom) - Total Distance and Total Time are now centered on the same line */}
-                        <div className="border-t border-gray-700 p-4">
-                            <LapRow
-                                isTotal={true}
-                                lap={{
-                                    type: 'Total',
-                                    distance: filteredSummary.totalDistance,
-                                    time: filteredSummary.totalTimeStr,
-                                    pace: filteredSummary.avgPace,
-                                }}
-                            />
-                            {/* Same-line centered layout for total stats */}
-                            <div className="flex justify-center mt-3 text-xs text-gray-400 space-x-4">
-                                <p>Total Distance: <span className="text-white font-medium">{filteredSummary.totalDistance.toFixed(2)} km</span></p>
-                                <p>Total Time: <span className="text-white font-medium">{filteredSummary.totalTimeStr}</span></p>
+                            {/* Lap Table Rows (Dynamic height) */}
+                            <div className="px-4">
+                                {filteredLaps.map((lap, index) => (
+                                    <LapRow key={index} lap={lap} index={index} isDarkMode={isDarkMode} />
+                                ))}
+                                {filteredLaps.length === 0 && !isLoading && (
+                                    <p className={`text-center py-8 ${subtleTextColor}`}>No laps recorded yet or no laps match the current filter criteria.</p>
+                                )}
                             </div>
+
+                            {/* Totals Summary Row (Uses LapRow component for formatting, but background will be stripped) */}
+                            <div id="total-row-container">
+                                <LapRow
+                                    isTotal={true}
+                                    lap={{
+                                        type: 'Total',
+                                        distance: filteredSummary.totalDistance,
+                                        time: filteredSummary.totalTimeStr,
+                                        pace: filteredSummary.avgPace,
+                                    }}
+                                    isDarkMode={isDarkMode}
+                                />
+                            </div>
+                        </div>
+                        {/* END CAPTURE TARGET */}
+                        
+                        {/* Centered Total Text - VISIBLE in UI, EXCLUDED from capture */}
+                        <div className={`flex justify-center mt-4 text-xs ${subtleTextColor} space-x-4 px-4`}>
+                            <p>Total Distance: <span className={`${primaryTextColor} font-medium`}>{filteredSummary.totalDistance.toFixed(2)} km</span></p>
+                            <p>Total Time: <span className={`${primaryTextColor} font-medium`}>{filteredSummary.totalTimeStr}</span></p>
+                        </div>
+                        
+                        {/* Share Button */}
+                        <div className={`p-4 border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-300'} mt-4`}>
+                            <button
+                                onClick={handleShareImage}
+                                className="w-full bg-indigo-600 hover:bg-indigo-700 transition duration-150 text-white font-medium py-3 rounded-lg shadow-xl flex items-center justify-center"
+                                disabled={filteredLaps.length === 0}
+                            >
+                                <ShareIcon className="w-4 h-4 mr-2"/> Share Current Stats (PNG)
+                            </button>
                         </div>
                     </div>
-                    <div className="text-center text-xs text-gray-500 mt-4">
+                    <div className={`text-center text-xs mt-4 ${subtleTextColor}`}>
                         Pace is calculated as Time per Kilometer (M'SS"/km).
                     </div>
                 </div>
