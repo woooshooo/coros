@@ -547,11 +547,13 @@
                                 });
                             } catch (error) {
                                 console.error('Error sharing file via Web Share API:', error);
+                                setApiError("Share failed. Ensure your connection is secure (HTTPS). Falling back to download.");
                                 // Fallback to download if sharing is dismissed or failed
                                 handleDownloadFallback(canvas);
                             }
                         } else {
                             // --- Desktop/Fallback Download Logic ---
+                            setApiError("Web Share API not supported. Image downloaded.");
                             handleDownloadFallback(canvas);
                         }
                     }, 'image/png');
@@ -644,15 +646,7 @@
                                                     : 'bg-green-600 hover:bg-green-700 text-white'
                                                 }`}
                                         >
-                                            {isLoading ? (
-                                                <>
-                                                    <Loader2Icon className="w-4 h-4 mr-2 animate-spin"/> Processing
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <UploadIcon className="w-4 h-4 mr-2"/> Analyze
-                                                </>
-                                            )}
+                                            <Loader2Icon className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`}/> Analyze
                                         </button>
                                     </div>
                                 </div>
