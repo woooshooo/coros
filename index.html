@@ -1,596 +1,711 @@
-import React, { useState, useMemo } from 'react';
-import { RefreshCw, Play, BarChart, Upload, Loader2, Image as ImageIcon, Filter, ChevronDown, ChevronUp, Clock, Gauge, Activity, ListOrdered } from 'lucide-react';
-
-// --- Utility Functions for Time and Pace Calculation ---
-
-/**
- * Converts a time string (e.g., "6:00.00", "1:14:32.47", or just "5") to total seconds.
- * If the input is a single number (no colon), it is assumed to be total minutes.
- * @param {string} timeStr - Time string in H:MM:SS.SS, MM:SS.SS, or M format.
- * @returns {number} Total seconds.
- */
-const timeToSeconds = (timeStr) => {
-    const cleanedStr = timeStr.trim();
-    if (!cleanedStr) return 0;
-
-    // Check if the input is a single number (no colon) and treat as minutes (per user request)
-    if (!cleanedStr.includes(':')) {
-        const minutes = parseFloat(cleanedStr);
-        if (!isNaN(minutes)) {
-            return minutes * 60; // Convert minutes to seconds
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Running Stats Analyzer</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load React and ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Load Babel for JSX compilation -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        /* Define Inter font and ensure dark background */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #000;
         }
-    }
+        /* Custom class for collapse transition */
+        .collapsible {
+            transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in-out;
+            overflow: hidden;
+        }
+        /* Ensure Average Pace stays on one line */
+        .whitespace-nowrap-forced {
+            white-space: nowrap;
+        }
+        /* Style the file input for better visual appearance */
+        input[type="file"]::file-selector-button {
+            background-color: #374151; /* gray-700 */
+            color: white;
+            border: 1px solid #4b5563; /* gray-600 */
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.5rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.15s ease-in-out;
+        }
+        input[type="file"]::file-selector-button:hover {
+            background-color: #4b5563; /* gray-600 */
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
 
-    const parts = cleanedStr.split(':').map(p => parseFloat(p));
-    let totalSeconds = 0;
+    <script type="text/babel">
+        const { useState, useMemo } = React;
 
-    if (parts.length === 3) {
-        // H:MM:SS.SS
-        totalSeconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
-    } else if (parts.length === 2) {
-        // MM:SS.SS
-        totalSeconds = parts[0] * 60 + parts[1];
-    }
-    
-    return totalSeconds;
-};
+        // --- Inline SVG Icons (Replaces lucide-react imports) ---
 
-/**
- * Converts total seconds back to a display string in M:SS.SS or H:MM:SS.SS format.
- * @param {number} totalSeconds - Total time in seconds.
- * @returns {string} Formatted time string.
- */
-const secondsToTimeString = (totalSeconds) => {
-    if (isNaN(totalSeconds) || totalSeconds < 0) return '0:00.00';
+        const Icon = ({ path, className = "w-4 h-4 mr-2" }) => (
+            <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                width="24" 
+                height="24" 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                className={className}
+            >
+                {path}
+            </svg>
+        );
 
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = totalSeconds % 60;
+        const RefreshCwIcon = (props) => (
+            <Icon {...props} path={<>
+                <path d="M23 4v6h-6"/>
+                <path d="M2 12s2-2 4-2h12s4 2 4 2"/>
+                <path d="M1 20v-6h6"/>
+                <path d="M22 12s-2 2-4 2H6s-4-2-4-2"/>
+            </>}/>
+        );
+        const PlayIcon = (props) => (
+            <Icon {...props} path={<polygon points="6 3 20 12 6 21 6 3"/>}/>
+        );
+        const BarChartIcon = (props) => (
+            <Icon {...props} path={<>
+                <line x1="12" x2="12" y1="20" y2="10"/>
+                <line x1="18" x2="18" y1="20" y2="4"/>
+                <line x1="6" x2="6" y1="20" y2="16"/>
+            </>}/>
+        );
+        const UploadIcon = (props) => (
+            <Icon {...props} path={<>
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" x2="12" y1="3" y2="15"/>
+            </>}/>
+        );
+        const Loader2Icon = (props) => (
+            <Icon {...props} path={<path d="M21 12a9 9 0 1 1-6.219-8.56"/>}/>
+        );
+        const ImageIcon = (props) => (
+            <Icon {...props} path={<>
+                <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>
+                <circle cx="9" cy="9" r="2"/>
+                <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
+            </>}/>
+        );
+        const FilterIcon = (props) => (
+            <Icon {...props} path={<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>}/>
+        );
+        const ChevronDownIcon = (props) => (
+            <Icon {...props} path={<path d="m6 9 6 6 6-6"/>}/>
+        );
+        const ChevronUpIcon = (props) => (
+            <Icon {...props} path={<path d="m18 15-6-6-6 6"/>}/>
+        );
+        const ClockIcon = (props) => (
+            <Icon {...props} path={<>
+                <circle cx="12" cy="12" r="10"/>
+                <polyline points="12 6 12 12 16 14"/>
+            </>}/>
+        );
+        const GaugeIcon = (props) => (
+            <Icon {...props} path={<>
+                <path d="m12 14c1.1 0 2-.9 2-2s-.9-2-2-2s-2 .9-2 2s.9 2 2 2"/>
+                <path d="M22 12h-4"/>
+                <path d="M6 12H2"/>
+                <path d="m20 16.2-1.4-1.4"/>
+                <path d="M4 7.8 5.4 9.2"/>
+                <path d="m16.2 20-1.4-1.4"/>
+                <path d="M9.2 4 7.8 5.4"/>
+            </>}/>
+        );
+        const ActivityIcon = (props) => (
+            <Icon {...props} path={<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>}/>
+        );
+        const ListOrderedIcon = (props) => (
+            <Icon {...props} path={<>
+                <line x1="10" x2="21" y1="6" y2="6"/>
+                <line x1="10" x2="21" y1="12" y2="12"/>
+                <line x1="10" x2="21" y1="18" y2="18"/>
+                <path d="M4 6h1.5v-1a.5.5 0 0 0-.5-.5H3"/>
+                <path d="M3 10.8V12a1 1 0 0 0 1 1h2"/>
+                <path d="M3 18h2.5c.5 0 .5.5.5 1s-.5 1-.5 1H3"/>
+            </>}/>
+        );
 
-    // Pad the seconds part to ensure SS.ss format
-    const formatTime = (time) => time.toFixed(2).padStart(5, '0');
-    // Pad the minutes part to ensure MM format if hours are present
-    const formatMinutes = (min) => String(min).padStart(2, '0');
+        // --- Utility Functions for Time and Pace Calculation ---
 
-    if (hours > 0) {
-        return `${hours}:${formatMinutes(minutes)}:${formatTime(seconds)}`;
-    } else {
-        return `${minutes}:${formatTime(seconds)}`;
-    }
-};
+        /**
+         * Converts a time string (e.g., "6:00.00", "1:14:32.47", or just "5") to total seconds.
+         * If the input is a single number (no colon), it is assumed to be total minutes.
+         * @param {string} timeStr - Time string in H:MM:SS.SS, MM:SS.SS, or M format.
+         * @returns {number} Total seconds.
+         */
+        const timeToSeconds = (timeStr) => {
+            const cleanedStr = timeStr.trim();
+            if (!cleanedStr) return 0;
 
-/**
- * Calculates pace (time per km) and returns a string in M'SS"/km format.
- * @param {number} timeSeconds - Time for the lap in seconds.
- * @param {number} distanceKm - Distance for the lap in kilometers.
- * @returns {string} Formatted pace string (e.g., "5'24"/km").
- */
-const calculatePace = (timeSeconds, distanceKm) => {
-    if (distanceKm <= 0 || timeSeconds <= 0) return '--/km';
+            // Check if the input is a single number (no colon) and treat as minutes (per user request)
+            if (!cleanedStr.includes(':')) {
+                const minutes = parseFloat(cleanedStr);
+                if (!isNaN(minutes)) {
+                    return minutes * 60; // Convert minutes to seconds
+                }
+            }
 
-    const paceSecondsPerKm = timeSeconds / distanceKm;
-    const minutes = Math.floor(paceSecondsPerKm / 60);
-    const seconds = Math.round(paceSecondsPerKm % 60); // Round to nearest second for display
+            const parts = cleanedStr.split(':').map(p => parseFloat(p));
+            let totalSeconds = 0;
 
-    return `${minutes}'${String(seconds).padStart(2, '0')}"/km`;
-};
-
-// --- Component: Lap Row ---
-
-const LapRow = ({ lap, index, isTotal = false }) => {
-    const isRest = lap.type === 'Rest';
-    const rowClass = isTotal ? 'bg-gray-800 font-bold' : isRest ? 'text-gray-400' : 'text-white';
-    const paceColor = 'text-white'; 
-
-    return (
-        <div className={`grid grid-cols-12 py-3 px-2 border-b border-gray-700 ${rowClass}`}>
-            <div className="col-span-3 text-sm flex items-center">
-                <span className="w-4 mr-2 text-gray-500">{isTotal ? '' : index + 1}</span>
-                <span>{lap.type}</span>
-            </div>
-            <div className="col-span-3 text-sm text-right">{lap.distance ? `${parseFloat(lap.distance).toFixed(2)} km` : '--'}</div>
-            <div className="col-span-3 text-sm text-right">{lap.time || '--'}</div>
-            <div className={`col-span-3 text-sm text-right ${paceColor}`}>
-                {lap.pace || (isRest ? '--/km' : '--')}
-            </div>
-        </div>
-    );
-};
-
-// --- Component: Filter Button ---
-
-const FilterButton = ({ type, currentFilter, setFilter, label }) => {
-    const isActive = currentFilter === type;
-    return (
-        <button
-            onClick={() => setFilter(type)}
-            className={`flex-1 py-2 px-1 rounded-lg font-medium transition duration-150 whitespace-nowrap ${
-                isActive ? 'bg-indigo-600 text-white shadow-md' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-            }`}
-        >
-            {label}
-        </button>
-    );
-};
-
-// --- Main Application Component ---
-
-const App = () => {
-    const [laps, setLaps] = useState([]);
-    const [newLap, setNewLap] = useState({
-        type: 'Run',
-        distance: '',
-        time: '',
-    });
-    
-    // State for Image Upload functionality
-    const [uploadedImage, setUploadedImage] = useState(null); // Stores file reference
-    const [isLoading, setIsLoading] = useState(false);
-    const [apiError, setApiError] = useState('');
-    
-    // State for Filtering - initial value is 'All'
-    const [filterType, setFilterType] = useState('All'); 
-    
-    // UPDATED: State for collapsing the manual input form (collapsed by default)
-    const [isInputExpanded, setIsInputExpanded] = useState(false); 
-    
-    // NEW: State for collapsing the image upload form (collapsed by default)
-    const [isUploadExpanded, setIsUploadExpanded] = useState(false);
-
-
-    // --- Computed Run Data (Unfiltered Laps with calculations) ---
-    const computedLaps = useMemo(() => {
-        return laps.map(lap => {
-            // Ensure lap.distance is treated as a number for calculation
-            const dist = parseFloat(lap.distance); 
-            const timeSec = timeToSeconds(lap.time);
-            const pace = calculatePace(timeSec, dist);
-            const formattedTime = secondsToTimeString(timeSec);
+            if (parts.length === 3) {
+                // H:MM:SS.SS
+                totalSeconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
+            } else if (parts.length === 2) {
+                // MM:SS.SS
+                totalSeconds = parts[0] * 60 + parts[1];
+            }
             
-            return { 
-                ...lap, 
-                timeSec, 
-                pace,
-                // Use the formatted time string for display in the table
-                time: formattedTime,
-                distance: dist // Ensure distance is stored as number for consistent rendering
-            };
-        });
-    }, [laps]);
-
-    // Filtered Laps based on user selection
-    const allFilterableTypes = ['Run', 'Rest', 'Warm Up', 'Cool Down'];
-
-    const filteredLaps = useMemo(() => {
-        if (filterType === 'All') {
-            return computedLaps;
-        } 
-        // Filter based on the exact type set in filterType
-        if (allFilterableTypes.includes(filterType)) {
-             return computedLaps.filter(lap => lap.type === filterType);
-        }
-        return computedLaps; // Fallback to all
-    }, [computedLaps, filterType]);
-
-
-    // Totals for the currently filtered view
-    const filteredSummary = useMemo(() => {
-        let totalTimeSeconds = 0;
-        let totalDistance = 0;
-        
-        filteredLaps.forEach(lap => {
-            totalTimeSeconds += lap.timeSec;
-            totalDistance += lap.distance;
-        });
-
-        const totalTimeStr = secondsToTimeString(totalTimeSeconds);
-        const avgPace = calculatePace(totalTimeSeconds, totalDistance);
-
-        return {
-            totalTimeSeconds,
-            totalDistance: totalDistance,
-            totalTimeStr,
-            avgPace
+            return totalSeconds;
         };
-    }, [filteredLaps]);
 
+        /**
+         * Converts total seconds back to a display string in M:SS.SS or H:MM:SS.SS format.
+         * @param {number} totalSeconds - Total time in seconds.
+         * @returns {string} Formatted time string.
+         */
+        const secondsToTimeString = (totalSeconds) => {
+            if (isNaN(totalSeconds) || totalSeconds < 0) return '0:00.00';
 
-    // --- Manual Form Handlers ---
-    const handleInputChange = (e) => {
-        const { name, value } = e.target;
-        setNewLap(prev => ({ ...prev, [name]: value }));
-    };
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
 
-    const handleAddLap = (e) => {
-        e.preventDefault();
-        const dist = parseFloat(newLap.distance);
-        const time = newLap.time.trim();
+            // Pad the seconds part to ensure SS.ss format
+            const formatTime = (time) => time.toFixed(2).padStart(5, '0');
+            // Pad the minutes part to ensure MM format if hours are present
+            const formatMinutes = (min) => String(min).padStart(2, '0');
 
-        const timeSec = timeToSeconds(time);
-
-        if (dist > 0 && timeSec > 0) {
-            setLaps(prev => [...prev, {
-                type: newLap.type,
-                distance: dist,
-                time: time, // Raw time string is stored, formatted time used for display
-            }]);
-            setNewLap({ type: 'Run', distance: '', time: '' });
-        } else {
-            setApiError("Invalid input: Distance must be > 0 and Time must be provided (e.g., '5' or '5:30.00').");
-            setTimeout(() => setApiError(''), 3000);
-        }
-    };
-
-    const handleClearLaps = () => {
-        setLaps([]);
-    };
-    
-    // --- Image Processing Handlers ---
-    const handleImageChange = (event) => {
-        const file = event.target.files[0];
-        if (file) {
-            setUploadedImage(file);
-            setApiError('');
-        }
-    };
-
-    const processImageWithGemini = async () => {
-        if (!uploadedImage) {
-            setApiError("Please upload an image first.");
-            setTimeout(() => setApiError(''), 3000);
-            return;
-        }
-
-        setIsLoading(true);
-        setApiError('');
-        
-        const reader = new FileReader();
-        reader.readAsDataURL(uploadedImage);
-
-        reader.onloadend = async () => {
-            const base64Data = reader.result.split(',')[1];
-            const mimeType = uploadedImage.type;
-            
-            const systemPrompt = `You are a data extraction expert. Your task is to extract the lap data (Lap Type, Distance in km, and Time) from the provided running stats image. Do NOT include the pace column or any total/summary rows. Use the exact type names found (e.g., 'Run', 'Rest', 'Warm Up', 'Cool Down'). For time, preserve the original format as a string (e.g., 6:00.00). Provide the output as a JSON array strictly following the schema.`;
-            const userQuery = "Extract the lap type, distance, and time for every row in the table visible in this image.";
-            
-            const payload = {
-                contents: [
-                    {
-                        role: "user",
-                        parts: [
-                            { text: userQuery },
-                            {
-                                inlineData: {
-                                    mimeType: mimeType,
-                                    data: base64Data
-                                }
-                            }
-                        ]
-                    }
-                ],
-                systemInstruction: { parts: [{ text: systemPrompt }] },
-                generationConfig: {
-                    responseMimeType: "application/json",
-                    responseSchema: {
-                        type: "ARRAY",
-                        items: {
-                            type: "OBJECT",
-                            properties: {
-                                "type": { "type": "STRING", "description": "The type of activity (e.g., Run, Rest, Warm Up, Cool Down)." },
-                                "distance": { "type": "NUMBER", "description": "The distance covered in kilometers (e.g., 2.16)." },
-                                "time": { "type": "STRING", "description": "The time duration in M:SS.SS or H:MM:SS.SS format (e.g., 6:00.00)." }
-                            },
-                            required: ["type", "distance", "time"]
-                        }
-                    }
-                }
-            };
-            
-            const apiKey = "";
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
-
-            try {
-                let response;
-                const maxRetries = 3;
-                let delay = 1000;
-
-                for (let i = 0; i < maxRetries; i++) {
-                    response = await fetch(apiUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-
-                    if (response.ok) {
-                        break;
-                    }
-                    if (i < maxRetries - 1) {
-                        console.warn(`API call failed (status: ${response.status}). Retrying in ${delay}ms...`);
-                        await new Promise(resolve => setTimeout(resolve, delay));
-                        delay *= 2; // Exponential backoff
-                    } else {
-                        throw new Error(`API failed after ${maxRetries} attempts.`);
-                    }
-                }
-                
-                const result = await response.json();
-                const jsonText = result.candidates?.[0]?.content?.parts?.[0]?.text;
-                
-                if (jsonText) {
-                    const extractedLaps = JSON.parse(jsonText);
-                    if (Array.isArray(extractedLaps)) {
-                        setLaps(extractedLaps.map(lap => ({
-                            type: lap.type || 'Run',
-                            distance: lap.distance || 0,
-                            time: lap.time || '0:00.00'
-                        })));
-                    } else {
-                        throw new Error("Extraction returned invalid data format.");
-                    }
-                } else {
-                    throw new Error("Could not extract data from the image.");
-                }
-
-            } catch (error) {
-                console.error("Gemini API Error:", error);
-                setApiError(`Data extraction failed: ${error.message}. Please try a different image or format.`);
-            } finally {
-                setIsLoading(false);
+            if (hours > 0) {
+                return `${hours}:${formatMinutes(minutes)}:${formatTime(seconds)}`;
+            } else {
+                return `${minutes}:${formatTime(seconds)}`;
             }
         };
-        reader.onerror = () => {
-            setIsLoading(false);
-            setApiError("Error reading the image file.");
+
+        /**
+         * Calculates pace (time per km) and returns a string in M'SS"/km format.
+         * @param {number} timeSeconds - Time for the lap in seconds.
+         * @param {number} distanceKm - Distance for the lap in kilometers.
+         * @returns {string} Formatted pace string (e.g., "5'24"/km").
+         */
+        const calculatePace = (timeSeconds, distanceKm) => {
+            if (distanceKm <= 0 || timeSeconds <= 0) return '--/km';
+
+            const paceSecondsPerKm = timeSeconds / distanceKm;
+            const minutes = Math.floor(paceSecondsPerKm / 60);
+            const seconds = Math.round(paceSecondsPerKm % 60); // Round to nearest second for display
+
+            return `${minutes}'${String(seconds).padStart(2, '0')}"/km`;
         };
-    };
 
-    // --- UI Render ---
-    return (
-        <div className="min-h-screen bg-black text-white font-sans p-4">
-            <style>
-                {`
-                    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
-                    .font-sans { font-family: 'Inter', sans-serif; }
-                    /* Style the file input for better visual appearance */
-                    input[type="file"]::file-selector-button {
-                        background-color: #374151; /* gray-700 */
-                        color: white;
-                        border: 1px solid #4b5563; /* gray-600 */
-                        padding: 0.5rem 0.75rem;
-                        border-radius: 0.5rem;
-                        font-weight: 500;
-                        cursor: pointer;
-                        transition: background-color 0.15s ease-in-out;
-                    }
-                    input[type="file"]::file-selector-button:hover {
-                        background-color: #4b5563; /* gray-600 */
-                    }
-                    /* Custom class for collapse transition */
-                    .collapsible {
-                        transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in-out;
-                        overflow: hidden;
-                    }
-                    /* Ensure Average Pace stays on one line */
-                    .whitespace-nowrap-forced {
-                        white-space: nowrap;
-                    }
-                `}
-            </style>
+        // --- Component: Lap Row ---
 
-            <div className="max-w-md mx-auto bg-gray-900 rounded-xl shadow-2xl overflow-hidden">
-                
-                {/* Image Upload Section (Collapsible) */}
-                <div className="p-4 bg-gray-800 border-b border-gray-700">
-                    <button 
-                        onClick={() => setIsUploadExpanded(!isUploadExpanded)}
-                        className="w-full flex justify-between items-center text-lg font-semibold text-white focus:outline-none"
-                        aria-expanded={isUploadExpanded}
-                    >
-                        <span className="flex items-center">
-                            <ImageIcon className="w-4 h-4 mr-2 text-green-400"/> Upload Stats Image
-                        </span>
-                        {isUploadExpanded ? <ChevronUp className="w-5 h-5 text-green-400"/> : <ChevronDown className="w-5 h-5 text-green-400"/>}
-                    </button>
+        const LapRow = ({ lap, index, isTotal = false }) => {
+            const isRest = lap.type === 'Rest';
+            const rowClass = isTotal ? 'bg-gray-800 font-bold' : isRest ? 'text-gray-400' : 'text-white';
+            const paceColor = 'text-white'; 
+
+            return (
+                <div className={`grid grid-cols-12 py-3 px-2 border-b border-gray-700 ${rowClass}`}>
+                    <div className="col-span-3 text-sm flex items-center">
+                        <span className="w-4 mr-2 text-gray-500">{isTotal ? '' : index + 1}</span>
+                        <span>{lap.type}</span>
+                    </div>
+                    <div className="col-span-3 text-sm text-right">{lap.distance ? `${parseFloat(lap.distance).toFixed(2)} km` : '--'}</div>
+                    <div className="col-span-3 text-sm text-right">{lap.time || '--'}</div>
+                    <div className={`col-span-3 text-sm text-right ${paceColor}`}>
+                        {lap.pace || (isRest ? '--/km' : '--')}
+                    </div>
+                </div>
+            );
+        };
+
+        // --- Component: Filter Button ---
+
+        const FilterButton = ({ type, currentFilter, setFilter, label }) => {
+            const isActive = currentFilter === type;
+            return (
+                <button
+                    onClick={() => setFilter(type)}
+                    className={`flex-1 py-2 px-1 rounded-lg font-medium transition duration-150 whitespace-nowrap ${
+                        isActive ? 'bg-indigo-600 text-white shadow-md' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    }`}
+                >
+                    {label}
+                </button>
+            );
+        };
+
+        // --- Main Application Component ---
+
+        const App = () => {
+            const [laps, setLaps] = useState([]);
+            const [newLap, setNewLap] = useState({
+                type: 'Run',
+                distance: '',
+                time: '',
+            });
+            
+            // State for Image Upload functionality
+            const [uploadedImage, setUploadedImage] = useState(null); // Stores file reference
+            const [isLoading, setIsLoading] = useState(false);
+            const [apiError, setApiError] = useState('');
+            
+            // State for Filtering - initial value is 'All'
+            const [filterType, setFilterType] = useState('All'); 
+            
+            // State for collapsing the manual input form (collapsed by default)
+            const [isInputExpanded, setIsInputExpanded] = useState(false); 
+            
+            // State for collapsing the image upload form (collapsed by default)
+            const [isUploadExpanded, setIsUploadExpanded] = useState(false);
+
+
+            // --- Computed Run Data (Unfiltered Laps with calculations) ---
+            const computedLaps = useMemo(() => {
+                return laps.map(lap => {
+                    // Ensure lap.distance is treated as a number for calculation
+                    const dist = parseFloat(lap.distance); 
+                    const timeSec = timeToSeconds(lap.time);
+                    const pace = calculatePace(timeSec, dist);
+                    const formattedTime = secondsToTimeString(timeSec);
                     
-                    <div 
-                        className="collapsible"
-                        style={{ 
-                            maxHeight: isUploadExpanded ? '500px' : '0', 
-                            opacity: isUploadExpanded ? 1 : 0,
-                            marginTop: isUploadExpanded ? '1rem' : '0'
-                        }}
-                    >
-                        <div className="space-y-3 mt-4">
-                            <div className="flex space-x-2 items-center">
-                                <label className="flex-1">
-                                    <input
-                                        type="file"
-                                        accept="image/*"
-                                        onChange={handleImageChange}
-                                        className="block w-full text-sm text-gray-400"
-                                    />
-                                    {uploadedImage && (
-                                        <p className="mt-2 text-xs text-gray-400 truncate">
-                                            File selected: {uploadedImage.name}
-                                        </p>
-                                    )}
-                                </label>
-                                
-                                <button
-                                    type="button"
-                                    onClick={processImageWithGemini}
-                                    disabled={isLoading || !uploadedImage}
-                                    className={`w-1/3 py-2 rounded-lg shadow-lg flex items-center justify-center font-medium transition duration-150
-                                        ${isLoading || !uploadedImage
-                                            ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                                            : 'bg-green-600 hover:bg-green-700 text-white'
-                                        }`}
-                                >
-                                    {isLoading ? (
-                                        <>
-                                            <Loader2 className="w-4 h-4 mr-2 animate-spin"/> Processing
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Upload className="w-4 h-4 mr-2"/> Analyze
-                                        </>
-                                    )}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                    return { 
+                        ...lap, 
+                        timeSec, 
+                        pace,
+                        // Use the formatted time string for display in the table
+                        time: formattedTime,
+                        distance: dist // Ensure distance is stored as number for consistent rendering
+                    };
+                });
+            }, [laps]);
 
-                {/* API Error Message */}
-                {apiError && (
-                    <div className="p-3 mx-4 my-2 bg-red-900 border border-red-700 rounded-lg text-sm text-red-300 font-medium">
-                        {apiError}
-                    </div>
-                )}
+            // Filtered Laps based on user selection
+            const allFilterableTypes = ['Run', 'Rest', 'Warm Up', 'Cool Down'];
+
+            const filteredLaps = useMemo(() => {
+                if (filterType === 'All') {
+                    return computedLaps;
+                } 
+                // Filter based on the exact type set in filterType
+                if (allFilterableTypes.includes(filterType)) {
+                     return computedLaps.filter(lap => lap.type === filterType);
+                }
+                return computedLaps; // Fallback to all
+            }, [computedLaps, filterType]);
+
+
+            // Totals for the currently filtered view
+            const filteredSummary = useMemo(() => {
+                let totalTimeSeconds = 0;
+                let totalDistance = 0;
                 
-                {/* Manual Lap Input Form (with Collapse/Expand) */}
-                <div className="p-4 bg-gray-900 border-t border-gray-800">
-                    <button 
-                        onClick={() => setIsInputExpanded(!isInputExpanded)}
-                        className="w-full flex justify-between items-center text-lg font-semibold text-white focus:outline-none"
-                        aria-expanded={isInputExpanded}
-                    >
-                        <span className="flex items-center">
-                            <BarChart className="w-4 h-4 mr-2 text-blue-400"/> Add New Lap Manually
-                        </span>
-                        {isInputExpanded ? <ChevronUp className="w-5 h-5 text-blue-400"/> : <ChevronDown className="w-5 h-5 text-blue-400"/>}
-                    </button>
+                filteredLaps.forEach(lap => {
+                    totalTimeSeconds += lap.timeSec;
+                    totalDistance += lap.distance;
+                });
 
-                    <div 
-                        className="collapsible"
-                        style={{ 
-                            maxHeight: isInputExpanded ? '500px' : '0', 
-                            opacity: isInputExpanded ? 1 : 0,
-                            marginTop: isInputExpanded ? '1rem' : '0'
-                        }}
-                    >
-                        <form onSubmit={handleAddLap} className="space-y-3">
-                            <div className="flex space-x-2">
-                                <select
-                                    name="type"
-                                    value={newLap.type}
-                                    onChange={handleInputChange}
-                                    className="w-1/3 p-2 bg-gray-700 border border-gray-600 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500"
-                                >
-                                    <option>Run</option>
-                                    <option>Rest</option>
-                                    <option>Warm Up</option>
-                                    <option>Cool Down</option>
-                                </select>
-                                <input
-                                    type="number"
-                                    name="distance"
-                                    value={newLap.distance}
-                                    onChange={handleInputChange}
-                                    placeholder="Distance (km)"
-                                    step="0.01"
-                                    className="w-1/3 p-2 bg-gray-700 border border-gray-600 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500"
-                                />
-                                <input
-                                    type="text"
-                                    name="time"
-                                    value={newLap.time}
-                                    onChange={handleInputChange}
-                                    placeholder="Time (M or M:SS.SS)"
-                                    className="w-1/3 p-2 bg-gray-700 border border-gray-600 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500"
-                                />
-                            </div>
-                            <div className="flex space-x-2">
-                                 <button
-                                    type="submit"
-                                    className="w-full bg-blue-600 hover:bg-blue-700 transition duration-150 text-white font-medium py-2 rounded-lg shadow-lg flex items-center justify-center"
-                                >
-                                    <Play className="w-4 h-4 mr-2"/> Add Lap
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={handleClearLaps}
-                                    className="w-1/3 bg-red-600 hover:bg-red-700 transition duration-150 text-white font-medium py-2 rounded-lg shadow-lg flex items-center justify-center"
-                                >
-                                    <RefreshCw className="w-3 h-3"/> Clear All
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
+                const totalTimeStr = secondsToTimeString(totalTimeSeconds);
+                const avgPace = calculatePace(totalTimeSeconds, totalDistance);
+
+                return {
+                    totalTimeSeconds,
+                    totalDistance: totalDistance,
+                    totalTimeStr,
+                    avgPace
+                };
+            }, [filteredLaps]);
+
+
+            // --- Manual Form Handlers ---
+            const handleInputChange = (e) => {
+                const { name, value } = e.target;
+                setNewLap(prev => ({ ...prev, [name]: value }));
+            };
+
+            const handleAddLap = (e) => {
+                e.preventDefault();
+                const dist = parseFloat(newLap.distance);
+                const time = newLap.time.trim();
+
+                const timeSec = timeToSeconds(time);
+
+                if (dist > 0 && timeSec > 0) {
+                    setLaps(prev => [...prev, {
+                        type: newLap.type,
+                        distance: dist,
+                        time: time, // Raw time string is stored, formatted time used for display
+                    }]);
+                    setNewLap({ type: 'Run', distance: '', time: '' });
+                } else {
+                    setApiError("Invalid input: Distance must be > 0 and Time must be provided (e.g., '5' or '5:30.00').");
+                    setTimeout(() => setApiError(''), 3000);
+                }
+            };
+
+            const handleClearLaps = () => {
+                setLaps([]);
+            };
+            
+            // --- Image Processing Handlers ---
+            const handleImageChange = (event) => {
+                const file = event.target.files[0];
+                if (file) {
+                    setUploadedImage(file);
+                    setApiError('');
+                }
+            };
+
+            const processImageWithGemini = async () => {
+                if (!uploadedImage) {
+                    setApiError("Please upload an image first.");
+                    setTimeout(() => setApiError(''), 3000);
+                    return;
+                }
+
+                setIsLoading(true);
+                setApiError('');
                 
-                {/* LAP FILTERING SECTION */}
-                <div className="p-4 bg-gray-800 border-t border-b border-gray-700">
-                    <h2 className="text-sm font-semibold mb-3 flex items-center text-white uppercase tracking-wider">
-                        <Filter className="w-4 h-4 mr-2 text-indigo-400"/> Filter Laps View
-                    </h2>
-                    {/* Filter buttons re-arranged as requested: Warm Up, Run, Rest, Cool Down */}
-                    <div className="flex space-x-1 text-xs justify-between">
-                        <FilterButton type="All" currentFilter={filterType} setFilter={setFilterType} label="All" />
-                        <FilterButton type="Warm Up" currentFilter={filterType} setFilter={setFilterType} label="Warm Up" />
-                        <FilterButton type="Run" currentFilter={filterType} setFilter={setFilterType} label="Run" />
-                        <FilterButton type="Rest" currentFilter={filterType} setFilter={setFilterType} label="Rest" />
-                        <FilterButton type="Cool Down" currentFilter={filterType} setFilter={setFilterType} label="Cool Down" />
+                const reader = new FileReader();
+                reader.readAsDataURL(uploadedImage);
+
+                reader.onloadend = async () => {
+                    const base64Data = reader.result.split(',')[1];
+                    const mimeType = uploadedImage.type;
+                    
+                    const systemPrompt = `You are a data extraction expert. Your task is to extract the lap data (Lap Type, Distance in km, and Time) from the provided running stats image. Do NOT include the pace column or any total/summary rows. Use the exact type names found (e.g., 'Run', 'Rest', 'Warm Up', 'Cool Down'). For time, preserve the original format as a string (e.g., 6:00.00). Provide the output as a JSON array strictly following the schema.`;
+                    const userQuery = "Extract the lap type, distance, and time for every row in the table visible in this image.";
+                    
+                    const payload = {
+                        contents: [
+                            {
+                                role: "user",
+                                parts: [
+                                    { text: userQuery },
+                                    {
+                                        inlineData: {
+                                            mimeType: mimeType,
+                                            data: base64Data
+                                        }
+                                    }
+                                ]
+                            }
+                        ],
+                        systemInstruction: { parts: [{ text: systemPrompt }] },
+                        generationConfig: {
+                            responseMimeType: "application/json",
+                            responseSchema: {
+                                type: "ARRAY",
+                                items: {
+                                    type: "OBJECT",
+                                    properties: {
+                                        "type": { "type": "STRING", "description": "The type of activity (e.g., Run, Rest, Warm Up, Cool Down)." },
+                                        "distance": { "type": "NUMBER", "description": "The distance covered in kilometers (e.g., 2.16)." },
+                                        "time": { "type": "STRING", "description": "The time duration in M:SS.SS or H:MM:SS.SS format (e.g., 6:00.00)." }
+                                    },
+                                    required: ["type", "distance", "time"]
+                                }
+                            }
+                        }
+                    };
+                    
+                    const apiKey = "";
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+
+                    try {
+                        let response;
+                        const maxRetries = 3;
+                        let delay = 1000;
+
+                        for (let i = 0; i < maxRetries; i++) {
+                            response = await fetch(apiUrl, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(payload)
+                            });
+
+                            if (response.ok) {
+                                break;
+                            }
+                            if (i < maxRetries - 1) {
+                                console.warn(`API call failed (status: ${response.status}). Retrying in ${delay}ms...`);
+                                await new Promise(resolve => setTimeout(resolve, delay));
+                                delay *= 2; // Exponential backoff
+                            } else {
+                                throw new Error(`API failed after ${maxRetries} attempts.`);
+                            }
+                        }
+                        
+                        const result = await response.json();
+                        const jsonText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                        
+                        if (jsonText) {
+                            const extractedLaps = JSON.parse(jsonText);
+                            if (Array.isArray(extractedLaps)) {
+                                setLaps(extractedLaps.map(lap => ({
+                                    type: lap.type || 'Run',
+                                    distance: lap.distance || 0,
+                                    time: lap.time || '0:00.00'
+                                })));
+                            } else {
+                                throw new Error("Extraction returned invalid data format.");
+                            }
+                        } else {
+                            throw new Error("Could not extract data from the image.");
+                        }
+
+                    } catch (error) {
+                        console.error("Gemini API Error:", error);
+                        setApiError(`Data extraction failed: ${error.message}. Please try a different image or format.`);
+                    } finally {
+                        setIsLoading(false);
+                    }
+                };
+                reader.onerror = () => {
+                    setIsLoading(false);
+                    setApiError("Error reading the image file.");
+                };
+            };
+
+            // --- UI Render ---
+            return (
+                <div className="min-h-screen bg-black text-white font-sans p-4">
+                    <div className="max-w-md mx-auto bg-gray-900 rounded-xl shadow-2xl overflow-hidden">
+                        
+                        {/* Image Upload Section (Collapsible) */}
+                        <div className="p-4 bg-gray-800 border-b border-gray-700">
+                            <button 
+                                onClick={() => setIsUploadExpanded(!isUploadExpanded)}
+                                className="w-full flex justify-between items-center text-lg font-semibold text-white focus:outline-none"
+                                aria-expanded={isUploadExpanded}
+                            >
+                                <span className="flex items-center">
+                                    <ImageIcon className="w-4 h-4 mr-2 text-green-400"/> Upload Stats Image
+                                </span>
+                                {isUploadExpanded ? <ChevronUpIcon className="w-5 h-5 text-green-400"/> : <ChevronDownIcon className="w-5 h-5 text-green-400"/>}
+                            </button>
+                            
+                            <div 
+                                className="collapsible"
+                                style={{ 
+                                    maxHeight: isUploadExpanded ? '500px' : '0', 
+                                    opacity: isUploadExpanded ? 1 : 0,
+                                    marginTop: isUploadExpanded ? '1rem' : '0'
+                                }}
+                            >
+                                <div className="space-y-3 mt-4">
+                                    <div className="flex space-x-2 items-center">
+                                        <label className="flex-1">
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={handleImageChange}
+                                                className="block w-full text-sm text-gray-400"
+                                            />
+                                            {uploadedImage && (
+                                                <p className="mt-2 text-xs text-gray-400 truncate">
+                                                    File selected: {uploadedImage.name}
+                                                </p>
+                                            )}
+                                        </label>
+                                        
+                                        <button
+                                            type="button"
+                                            onClick={processImageWithGemini}
+                                            disabled={isLoading || !uploadedImage}
+                                            className={`w-1/3 py-2 rounded-lg shadow-lg flex items-center justify-center font-medium transition duration-150
+                                                ${isLoading || !uploadedImage
+                                                    ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                                                    : 'bg-green-600 hover:bg-green-700 text-white'
+                                                }`}
+                                        >
+                                            {isLoading ? (
+                                                <>
+                                                    <Loader2Icon className="w-4 h-4 mr-2 animate-spin"/> Processing
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <UploadIcon className="w-4 h-4 mr-2"/> Analyze
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* API Error Message */}
+                        {apiError && (
+                            <div className="p-3 mx-4 my-2 bg-red-900 border border-red-700 rounded-lg text-sm text-red-300 font-medium">
+                                {apiError}
+                            </div>
+                        )}
+                        
+                        {/* Manual Lap Input Form (with Collapse/Expand) */}
+                        <div className="p-4 bg-gray-900 border-t border-gray-800">
+                            <button 
+                                onClick={() => setIsInputExpanded(!isInputExpanded)}
+                                className="w-full flex justify-between items-center text-lg font-semibold text-white focus:outline-none"
+                                aria-expanded={isInputExpanded}
+                            >
+                                <span className="flex items-center">
+                                    <BarChartIcon className="w-4 h-4 mr-2 text-blue-400"/> Add New Lap Manually
+                                </span>
+                                {isInputExpanded ? <ChevronUpIcon className="w-5 h-5 text-blue-400"/> : <ChevronDownIcon className="w-5 h-5 text-blue-400"/>}
+                            </button>
+
+                            <div 
+                                className="collapsible"
+                                style={{ 
+                                    maxHeight: isInputExpanded ? '500px' : '0', 
+                                    opacity: isInputExpanded ? 1 : 0,
+                                    marginTop: isInputExpanded ? '1rem' : '0'
+                                }}
+                            >
+                                <form onSubmit={handleAddLap} className="space-y-3">
+                                    <div className="flex space-x-2">
+                                        <select
+                                            name="type"
+                                            value={newLap.type}
+                                            onChange={handleInputChange}
+                                            className="w-1/3 p-2 bg-gray-700 border border-gray-600 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500"
+                                        >
+                                            <option>Run</option>
+                                            <option>Rest</option>
+                                            <option>Warm Up</option>
+                                            <option>Cool Down</option>
+                                        </select>
+                                        <input
+                                            type="number"
+                                            name="distance"
+                                            value={newLap.distance}
+                                            onChange={handleInputChange}
+                                            placeholder="Distance (km)"
+                                            step="0.01"
+                                            className="w-1/3 p-2 bg-gray-700 border border-gray-600 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500"
+                                        />
+                                        <input
+                                            type="text"
+                                            name="time"
+                                            value={newLap.time}
+                                            onChange={handleInputChange}
+                                            placeholder="Time (M or M:SS.SS)"
+                                            className="w-1/3 p-2 bg-gray-700 border border-gray-600 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500"
+                                        />
+                                    </div>
+                                    <div className="flex space-x-2">
+                                         <button
+                                            type="submit"
+                                            className="w-full bg-blue-600 hover:bg-blue-700 transition duration-150 text-white font-medium py-2 rounded-lg shadow-lg flex items-center justify-center"
+                                        >
+                                            <PlayIcon className="w-4 h-4 mr-2"/> Add Lap
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleClearLaps}
+                                            className="w-1/3 bg-red-600 hover:bg-red-700 transition duration-150 text-white font-medium py-2 rounded-lg shadow-lg flex items-center justify-center"
+                                        >
+                                            <RefreshCwIcon className="w-3 h-3"/> Clear All
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                        
+                        {/* LAP FILTERING SECTION */}
+                        <div className="p-4 bg-gray-800 border-t border-b border-gray-700">
+                            <h2 className="text-sm font-semibold mb-3 flex items-center text-white uppercase tracking-wider">
+                                <FilterIcon className="w-4 h-4 mr-2 text-indigo-400"/> Filter Laps View
+                            </h2>
+                            {/* Filter buttons re-arranged as requested: Warm Up, Run, Rest, Cool Down */}
+                            <div className="flex space-x-1 text-xs justify-between">
+                                <FilterButton type="All" currentFilter={filterType} setFilter={setFilterType} label="All" />
+                                <FilterButton type="Warm Up" currentFilter={filterType} setFilter={setFilterType} label="Warm Up" />
+                                <FilterButton type="Run" currentFilter={filterType} setFilter={setFilterType} label="Run" />
+                                <FilterButton type="Rest" currentFilter={filterType} setFilter={setFilterType} label="Rest" />
+                                <FilterButton type="Cool Down" currentFilter={filterType} setFilter={setFilterType} label="Cool Down" />
+                            </div>
+                        </div>
+
+                        {/* Lap Table Header */}
+                        <div className="px-4 pt-4">
+                            <div className="grid grid-cols-12 text-xs font-semibold text-gray-400 py-2 border-b border-gray-700 uppercase">
+                                {/* Left-aligned Lap */}
+                                <div className="col-span-3 flex items-center">
+                                     <ListOrderedIcon className="w-3 h-3 mr-1"/> Lap
+                                </div>
+                                {/* Right-aligned Distance */}
+                                <div className="col-span-3 text-right flex items-center justify-end">
+                                    <ActivityIcon className="w-3 h-3 mr-1"/> Distance
+                                </div>
+                                {/* Right-aligned Time */}
+                                <div className="col-span-3 text-right flex items-center justify-end">
+                                    <ClockIcon className="w-3 h-3 mr-1"/> Time
+                                </div>
+                                {/* Right-aligned Average Pace (Ensured single line with whitespace-nowrap) */}
+                                <div className="col-span-3 text-right flex items-center justify-end">
+                                    <GaugeIcon className="w-3 h-3 mr-1"/>
+                                    <span className="whitespace-nowrap-forced">Average Pace</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Lap Table Rows (Dynamic height) */}
+                        <div className="px-4">
+                            {filteredLaps.map((lap, index) => (
+                                <LapRow key={index} lap={lap} index={index} />
+                            ))}
+                            {filteredLaps.length === 0 && !isLoading && (
+                                <p className="text-center text-gray-500 py-8">No laps recorded yet or no laps match the current filter criteria.</p>
+                            )}
+                        </div>
+
+                        {/* Totals Summary (Fixed at bottom) - Total Distance and Total Time are now centered on the same line */}
+                        <div className="border-t border-gray-700 p-4">
+                            <LapRow
+                                isTotal={true}
+                                lap={{
+                                    type: 'Total',
+                                    distance: filteredSummary.totalDistance,
+                                    time: filteredSummary.totalTimeStr,
+                                    pace: filteredSummary.avgPace,
+                                }}
+                            />
+                            {/* Same-line centered layout for total stats */}
+                            <div className="flex justify-center mt-3 text-xs text-gray-400 space-x-4">
+                                <p>Total Distance: <span className="text-white font-medium">{filteredSummary.totalDistance.toFixed(2)} km</span></p>
+                                <p>Total Time: <span className="text-white font-medium">{filteredSummary.totalTimeStr}</span></p>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="text-center text-xs text-gray-500 mt-4">
+                        Pace is calculated as Time per Kilometer (M'SS"/km).
                     </div>
                 </div>
+            );
+        };
 
-                {/* Lap Table Header */}
-                <div className="px-4 pt-4">
-                    <div className="grid grid-cols-12 text-xs font-semibold text-gray-400 py-2 border-b border-gray-700 uppercase">
-                        {/* Left-aligned Lap */}
-                        <div className="col-span-3 flex items-center">
-                             <ListOrdered className="w-3 h-3 mr-1"/> Lap
-                        </div>
-                        {/* Right-aligned Distance */}
-                        <div className="col-span-3 text-right flex items-center justify-end">
-                            <Activity className="w-3 h-3 mr-1"/> Distance
-                        </div>
-                        {/* Right-aligned Time */}
-                        <div className="col-span-3 text-right flex items-center justify-end">
-                            <Clock className="w-3 h-3 mr-1"/> Time
-                        </div>
-                        {/* Right-aligned Average Pace (Ensured single line with whitespace-nowrap) */}
-                        <div className="col-span-3 text-right flex items-center justify-end">
-                            <Gauge className="w-3 h-3 mr-1"/>
-                            <span className="whitespace-nowrap-forced">Average Pace</span>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Lap Table Rows (Removed max-height and overflow-y-auto to allow continuous flow) */}
-                <div className="px-4">
-                    {filteredLaps.map((lap, index) => (
-                        <LapRow key={index} lap={lap} index={index} />
-                    ))}
-                    {filteredLaps.length === 0 && !isLoading && (
-                        <p className="text-center text-gray-500 py-8">No laps recorded yet or no laps match the current filter criteria.</p>
-                    )}
-                </div>
-
-                {/* Totals Summary (Fixed at bottom) - Total Distance and Total Time are now centered on the same line */}
-                <div className="border-t border-gray-700 p-4">
-                    <LapRow
-                        isTotal={true}
-                        lap={{
-                            type: 'Total',
-                            distance: filteredSummary.totalDistance,
-                            time: filteredSummary.totalTimeStr,
-                            pace: filteredSummary.avgPace,
-                        }}
-                    />
-                    {/* Same-line centered layout for total stats */}
-                    <div className="flex justify-center mt-3 text-xs text-gray-400 space-x-4">
-                        <p>Total Distance: <span className="text-white font-medium">{filteredSummary.totalDistance.toFixed(2)} km</span></p>
-                        <p>Total Time: <span className="text-white font-medium">{filteredSummary.totalTimeStr}</span></p>
-                    </div>
-                </div>
-            </div>
-            <div className="text-center text-xs text-gray-500 mt-4">
-                Pace is calculated as Time per Kilometer (M'SS"/km).
-            </div>
-        </div>
-    );
-};
-
-export default App;
+        // Render the application
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
