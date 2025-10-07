@@ -57,7 +57,8 @@
 
         // --- Inline SVG Icons (Optimized for minimal DOM changes) ---
 
-        const Icon = ({ path, className = "w-4 h-4 mr-2" }) => (
+        // Added 'align-middle' and 'inline-block' to the default className for perfect vertical centering with text.
+        const Icon = ({ path, className = "w-4 h-4 mr-2 inline-block align-middle" }) => (
             <svg 
                 xmlns="http://www.w3.org/2000/svg" 
                 width="24" 
@@ -475,7 +476,7 @@
                 };
             };
             
-            // --- Share Image Handler ---
+            // --- Share Image Handler (Updated for Web Share API) ---
             const handleShareImage = () => {
                 const input = document.getElementById('share-target-content');
                 const totalRowElement = document.getElementById('total-lap-row'); // The specific total lap row
@@ -516,28 +517,43 @@
                     backgroundColor: null, // Critical for transparent PNG output
                     allowTaint: true
                 }).then(canvas => {
-                    // 3. Restore original styles immediately
+                    // 3. Convert canvas to Blob for sharing/download
+                    canvas.toBlob(async (blob) => {
+                        // 4. Restore original styles immediately (critical to do this inside or right after the html2canvas promise)
 
-                    // Restore total row styles
-                    totalRowElement.className = originalTotalRowClass;
+                        // Restore total row styles
+                        totalRowElement.className = originalTotalRowClass;
 
-                    // Restore root card styles
-                    rootCard.classList.remove('bg-transparent', 'shadow-none', 'border-none');
-                    if (isCurrentlyDark) rootCard.classList.add('bg-gray-900', 'shadow-2xl');
-                    if (isCurrentlyLight) rootCard.classList.add('bg-white', 'shadow-lg', 'border');
-                    rootCard.className = originalRootClass; // Safest way is to restore original captured class list
-                    
-                    document.body.style.backgroundColor = originalBodyBg;
-                    document.body.className = originalBodyClass;
+                        // Restore root card styles
+                        rootCard.classList.remove('bg-transparent', 'shadow-none', 'border-none');
+                        if (isCurrentlyDark) rootCard.classList.add('bg-gray-900', 'shadow-2xl');
+                        if (isCurrentlyLight) rootCard.classList.add('bg-white', 'shadow-lg', 'border');
+                        rootCard.className = originalRootClass; // Safest way is to restore original captured class list
+                        
+                        document.body.style.backgroundColor = originalBodyBg;
+                        document.body.className = originalBodyClass;
 
-                    // 4. Convert canvas to PNG and trigger download
-                    const image = canvas.toDataURL('image/png');
-                    const link = document.createElement('a');
-                    link.href = image;
-                    link.download = `running-stats-${new Date().toISOString().slice(0, 10)}.png`;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
+                        // --- Mobile Share Logic ---
+                        if (navigator.share && blob) {
+                            // Convert Blob to File object for sharing
+                            const file = new File([blob], `running-stats-${new Date().toISOString().slice(0, 10)}.png`, { type: 'image/png' });
+                            
+                            try {
+                                await navigator.share({
+                                    title: 'Running Stats',
+                                    text: 'Check out my filtered running stats!',
+                                    files: [file],
+                                });
+                            } catch (error) {
+                                console.error('Error sharing file via Web Share API:', error);
+                                // Fallback to download if sharing is dismissed or failed
+                                handleDownloadFallback(canvas);
+                            }
+                        } else {
+                            // --- Desktop/Fallback Download Logic ---
+                            handleDownloadFallback(canvas);
+                        }
+                    }, 'image/png');
                 }).catch(err => {
                     console.error("Image capture failed:", err);
                     setApiError("Failed to generate image. Try another browser.");
@@ -549,6 +565,16 @@
                     document.body.className = originalBodyClass;
                 });
             };
+
+            const handleDownloadFallback = (canvas) => {
+                const image = canvas.toDataURL('image/png');
+                const link = document.createElement('a');
+                link.href = image;
+                link.download = `running-stats-${new Date().toISOString().slice(0, 10)}.png`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
 
 
             // --- UI Render ---
