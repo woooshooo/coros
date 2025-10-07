@@ -477,13 +477,18 @@
             };
             
             // --- Share Image Handler (Updated for Web Share API) ---
+            const isMobile = useMemo(() => {
+                if (typeof window === 'undefined') return false;
+                const toMatch = [/Android/i, /webOS/i, /iPhone/i, /iPad/i, /iPod/i, /BlackBerry/i, /Windows Phone/i];
+                return toMatch.some((toMatchItem) => navigator.userAgent.match(toMatchItem));
+            }, []);
+
             const handleShareImage = () => {
                 const input = document.getElementById('share-target-content');
                 const totalRowElement = document.getElementById('total-lap-row'); // The specific total lap row
                 const rootCard = document.getElementById('stats-card');
                 
                 if (!input || !rootCard || !totalRowElement) {
-                    // Log error but don't show UI message for this internal error
                     console.error("Internal Error: Could not find capture area elements.");
                     return;
                 }
@@ -534,26 +539,24 @@
                         document.body.style.backgroundColor = originalBodyBg;
                         document.body.className = originalBodyClass;
 
-                        // --- Mobile Share Logic ---
-                        if (navigator.share && blob) {
-                            // Convert Blob to File object for sharing
+                        // --- Share Logic: Separate paths for mobile (share) vs desktop (download) ---
+                        if (isMobile && navigator.share && blob) {
+                            // MOBILE: Attempt native share
                             const file = new File([blob], `running-stats-${new Date().toISOString().slice(0, 10)}.png`, { type: 'image/png' });
                             
                             try {
-                                // Attempt native share
                                 await navigator.share({
                                     title: 'Running Stats',
                                     text: 'Check out my filtered running stats!',
                                     files: [file],
                                 });
                             } catch (error) {
-                                console.error('Native share failed on this device/browser (Error:', error, '). Falling back to file download.');
-                                // NO UI ERROR MESSAGE HERE - Just fall back for a smooth download
+                                console.error('Native share failed on mobile (Error:', error, '). Falling back to file download.');
                                 handleDownloadFallback(canvas);
                             }
                         } else {
-                            // --- Desktop/Fallback Download Logic ---
-                            console.warn("Web Share API not supported. Image downloaded.");
+                            // DESKTOP/FALLBACK: Trigger download
+                            console.warn("Desktop environment detected or Web Share API not fully supported. Image downloaded.");
                             handleDownloadFallback(canvas);
                         }
                     }, 'image/png');
