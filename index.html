@@ -269,6 +269,9 @@
             const [isLoading, setIsLoading] = useState(false);
             const [apiError, setApiError] = useState('');
             
+            // NEW: State for API Key
+            const [apiKey, setApiKey] = useState(''); 
+            
             // State for Filtering - initial value is 'All'
             const [filterType, setFilterType] = useState('All'); 
             
@@ -376,6 +379,11 @@
             };
 
             const processImageWithGemini = async () => {
+                if (!apiKey) {
+                    setApiError("API Key is required to analyze the image.");
+                    setTimeout(() => setApiError(''), 3000);
+                    return;
+                }
                 if (!uploadedImage) {
                     setApiError("Please upload an image first.");
                     setTimeout(() => setApiError(''), 3000);
@@ -428,7 +436,7 @@
                         }
                     };
                     
-                    const apiKey = "";
+                    // Use the user-provided API key here
                     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
 
                     try {
@@ -475,7 +483,7 @@
 
                     } catch (error) {
                         console.error("Gemini API Error:", error);
-                        setApiError(`Data extraction failed: ${error.message}. Please try a different image or format.`);
+                        setApiError(`Data extraction failed: ${error.message}. This is often due to an invalid API Key.`);
                     } finally {
                         setIsLoading(false);
                     }
@@ -507,12 +515,21 @@
                             <div 
                                 className="collapsible"
                                 style={{ 
-                                    maxHeight: isUploadExpanded ? '500px' : '0', 
+                                    maxHeight: isUploadExpanded ? '600px' : '0', 
                                     opacity: isUploadExpanded ? 1 : 0,
                                     marginTop: isUploadExpanded ? '1rem' : '0'
                                 }}
                             >
                                 <div className="space-y-3 mt-4">
+                                    {/* NEW: API Key Input */}
+                                    <input
+                                        type="password"
+                                        value={apiKey}
+                                        onChange={(e) => setApiKey(e.target.value)}
+                                        placeholder="Enter your Gemini API Key (Required)"
+                                        className="w-full p-2 bg-gray-700 border border-gray-600 rounded-lg text-sm focus:ring-green-500 focus:border-green-500"
+                                    />
+                                    {/* File Uploader and Analyzer Button */}
                                     <div className="flex space-x-2 items-center">
                                         <label className="flex-1">
                                             <input
@@ -531,9 +548,9 @@
                                         <button
                                             type="button"
                                             onClick={processImageWithGemini}
-                                            disabled={isLoading || !uploadedImage}
+                                            disabled={isLoading || !uploadedImage || !apiKey}
                                             className={`w-1/3 py-2 rounded-lg shadow-lg flex items-center justify-center font-medium transition duration-150
-                                                ${isLoading || !uploadedImage
+                                                ${isLoading || !uploadedImage || !apiKey
                                                     ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
                                                     : 'bg-green-600 hover:bg-green-700 text-white'
                                                 }`}
