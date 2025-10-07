@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Running Stats Analyzer</title>
+    <title>Running Stats Analyzer by Web</title>
     <!-- Load Tailwind CSS (Critical for fast initial render/styling) -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Load React Core Library FIRST -->
@@ -46,6 +46,15 @@
         }
         .light-mode input[type="file"]::file-selector-button:hover {
             background-color: #D1D5DB; /* gray-300 */
+        }
+        /* Style for editable cells */
+        .edit-input {
+            width: 100%;
+            padding: 2px 4px;
+            border-radius: 4px;
+            font-size: 0.875rem; /* text-sm */
+            box-sizing: border-box;
+            background-color: transparent;
         }
     </style>
 </head>
@@ -92,6 +101,12 @@
         const SunIcon = (props) => ( <Icon {...props} path={<><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></>}/> );
         const MoonIcon = (props) => ( <Icon {...props} path={<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>}/> );
         const ShareIcon = (props) => ( <Icon {...props} path={<><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" x2="12" y1="2" y2="15"/></>}/> );
+        const EditIcon = (props) => ( <Icon {...props} path={<path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>}/> );
+        // FIX: Wrapped adjacent JSX elements in a fragment (<>...</>)
+        const SaveIcon = (props) => ( <Icon {...props} path={<><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 7 14 7"/></>}/> );
+        // FIX: Wrapped adjacent JSX elements in a fragment (<>...</>)
+        const XIcon = (props) => ( <Icon {...props} path={<><path d="M18 6 6 18"/><path d="m6 6 12 12"/></>}/> );
+
 
         // --- Utility Functions for Time and Pace Calculation ---
 
@@ -161,19 +176,72 @@
 
             return `${minutes}'${String(seconds).padStart(2, '0')}"/km`;
         };
+        
+        const LAP_TYPES = ['Run', 'Rest', 'Warm Up', 'Cool Down'];
+
 
         // --- Component: Lap Row ---
 
-        const LapRow = ({ lap, index, isTotal = false, isDarkMode }) => {
+        const LapRow = ({ lap, index, isTotal = false, isDarkMode, isEditing, onSave, onCancel, inputClass }) => {
             const isRest = lap.type === 'Rest';
             
+            // State for holding temporary edits
+            const [editLap, setEditLap] = useState({ 
+                type: lap.type, 
+                distance: lap.rawDistance || parseFloat(lap.distance).toFixed(2), 
+                time: lap.rawTime || lap.time 
+            });
+
+            // Effects to update edit state when lap props change (e.g., after initial load or image analysis)
+            useEffect(() => {
+                setEditLap({ 
+                    type: lap.type, 
+                    distance: lap.rawDistance !== undefined ? lap.rawDistance : parseFloat(lap.distance).toFixed(2), 
+                    time: lap.rawTime !== undefined ? lap.rawTime : lap.time 
+                });
+            }, [lap.type, lap.rawDistance, lap.rawTime, lap.distance, lap.time]);
+
+            
+            // --- Handlers for Editing ---
+            const handleEditChange = (e) => {
+                const { name, value } = e.target;
+                setEditLap(prev => ({ ...prev, [name]: value }));
+            };
+
+            const handleSave = () => {
+                const dist = parseFloat(editLap.distance);
+                const timeSec = timeToSeconds(editLap.time);
+
+                if (dist > 0 && timeSec > 0) {
+                    onSave(index, { 
+                        type: editLap.type, 
+                        distance: dist, 
+                        time: editLap.time // Store raw time input
+                    });
+                } else {
+                    // Simple console log validation feedback
+                    console.error("Validation failed: Distance must be > 0 and Time must be valid.");
+                }
+            };
+
+            const handleCancel = () => {
+                // Revert to original computed values
+                setEditLap({ 
+                    type: lap.type, 
+                    distance: lap.rawDistance !== undefined ? lap.rawDistance : parseFloat(lap.distance).toFixed(2), 
+                    time: lap.rawTime !== undefined ? lap.rawTime : lap.time 
+                });
+                onCancel();
+            };
+
+
+            // --- Styling ---
             let rowClass;
             let paceColor = isDarkMode ? 'text-white' : 'text-gray-900';
             let textColor = isDarkMode ? 'text-white' : 'text-gray-900';
             let subtleColor = isDarkMode ? 'text-gray-400' : 'text-gray-500';
 
             if (isTotal) {
-                // Apply background class specific to total row
                 rowClass = isDarkMode ? 'bg-gray-800 font-bold total-row-bg' : 'bg-gray-200 font-bold total-row-bg'; 
             } else if (isRest) {
                 rowClass = isDarkMode ? 'text-gray-400' : 'text-gray-600';
@@ -181,20 +249,92 @@
             } else {
                 rowClass = textColor;
             }
-            
-            // NOTE: Removed borderColor and border-b classes for cleaner table look
 
-            return (
-                // Used unique ID only for the total row container for easier targeting
-                <div className={`grid grid-cols-12 py-3 px-2 ${rowClass}`}
-                     id={isTotal ? 'total-lap-row' : undefined}
-                >
-                    <div className={`col-span-3 text-sm flex items-center ${textColor}`}>
-                        <span className={`w-4 mr-2 ${subtleColor}`}>{isTotal ? '' : index + 1}</span>
-                        <span>{lap.type}</span>
+            if (isTotal) {
+                 return (
+                    <div className={`grid grid-cols-12 py-3 px-2 ${rowClass}`} id="total-lap-row">
+                        <div className={`col-span-3 text-sm flex items-center ${textColor}`}>{lap.type}</div>
+                        <div className={`col-span-3 text-sm text-right ${textColor}`}>{lap.distance ? `${lap.distance.toFixed(2)} km` : '--'}</div>
+                        <div className={`col-span-3 text-sm text-right ${textColor}`}>{lap.time || '--'}</div>
+                        <div className={`col-span-3 text-sm text-right ${paceColor}`}>{lap.pace || '--'}</div>
                     </div>
-                    <div className={`col-span-3 text-sm text-right ${textColor}`}>{lap.distance ? `${parseFloat(lap.distance).toFixed(2)} km` : '--'}</div>
-                    <div className={`col-span-3 text-sm text-right ${textColor}`}>{lap.time || '--'}</div>
+                );
+            }
+
+            // --- Render Edit Mode vs. View Mode ---
+            return (
+                <div className={`grid grid-cols-12 py-3 px-2 ${rowClass}`}>
+                    
+                    {/* Lap Type / Control Buttons */}
+                    <div className={`col-span-3 text-sm flex items-center space-x-1 ${textColor}`}>
+                        <span className={`w-4 mr-1 ${subtleColor}`}>{index + 1}</span>
+                        
+                        {isEditing ? (
+                            <div className='flex flex-col space-y-1 w-full'>
+                                <select
+                                    name="type"
+                                    value={editLap.type}
+                                    onChange={handleEditChange}
+                                    className={`edit-input text-xs ${inputClass}`}
+                                >
+                                    {LAP_TYPES.map(type => <option key={type} value={type}>{type}</option>)}
+                                </select>
+                                <div className="flex space-x-1 mt-1">
+                                    <button 
+                                        onClick={handleSave} 
+                                        className={`bg-green-600 hover:bg-green-700 text-white p-1 rounded-sm flex items-center justify-center text-xs`}
+                                        title="Save Edits"
+                                    >
+                                        <SaveIcon className="w-3 h-3 mr-0"/>
+                                    </button>
+                                    <button 
+                                        onClick={handleCancel} 
+                                        className={`bg-red-600 hover:bg-red-700 text-white p-1 rounded-sm flex items-center justify-center text-xs`}
+                                        title="Cancel Edits"
+                                    >
+                                        <XIcon className="w-3 h-3 mr-0"/>
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            <span>{lap.type}</span>
+                        )}
+                    </div>
+                    
+                    {/* Distance (km) */}
+                    <div className={`col-span-3 text-sm text-right ${textColor}`}>
+                        {isEditing ? (
+                            <input
+                                type="number"
+                                name="distance"
+                                value={editLap.distance}
+                                onChange={handleEditChange}
+                                step="0.01"
+                                min="0"
+                                className={`edit-input text-right ${inputClass}`}
+                            />
+                        ) : (
+                            `${lap.distance ? lap.distance.toFixed(2) : '0.00'} km`
+                        )}
+                    </div>
+                    
+                    {/* Time */}
+                    <div className={`col-span-3 text-sm text-right ${textColor}`}>
+                        {isEditing ? (
+                            <input
+                                type="text"
+                                name="time"
+                                value={editLap.time}
+                                onChange={handleEditChange}
+                                placeholder="M:SS.ss"
+                                className={`edit-input text-right ${inputClass}`}
+                            />
+                        ) : (
+                            lap.time || '--'
+                        )}
+                    </div>
+
+                    {/* Pace (Always Displayed) */}
                     <div className={`col-span-3 text-sm text-right ${paceColor}`}>
                         {lap.pace || (isRest ? '--/km' : '--')}
                     </div>
@@ -245,6 +385,7 @@
             const [filterType, setFilterType] = useState('All'); 
             const [isInputExpanded, setIsInputExpanded] = useState(false); 
             const [isUploadExpanded, setIsUploadExpanded] = useState(false);
+            const [isEditing, setIsEditing] = useState(false); // NEW: Edit Mode State
             
             // NEW: Dark Mode State, defaulting to true
             const [isDarkMode, setIsDarkMode] = useState(true);
@@ -266,8 +407,12 @@
             // --- Computed Run Data (Unfiltered Laps with calculations) ---
             const computedLaps = useMemo(() => {
                 return laps.map(lap => {
-                    const dist = parseFloat(lap.distance) || 0; 
-                    const timeSec = timeToSeconds(lap.time);
+                    // Raw data is the input from forms/API before processing
+                    const rawDistance = lap.distance; 
+                    const rawTime = lap.time; 
+                    
+                    const dist = parseFloat(rawDistance) || 0; 
+                    const timeSec = timeToSeconds(rawTime);
                     const pace = calculatePace(timeSec, dist);
                     const formattedTime = secondsToTimeString(timeSec);
                     
@@ -275,8 +420,10 @@
                         ...lap, 
                         timeSec, 
                         pace,
-                        time: formattedTime,
-                        distance: dist
+                        time: formattedTime, // formatted for display
+                        distance: dist, // numerical distance
+                        rawDistance, // raw input for editing
+                        rawTime // raw input for editing
                     };
                 });
             }, [laps]);
@@ -317,6 +464,45 @@
             }, [filteredLaps]);
 
 
+            // --- Lap Editing Handlers ---
+            const handleSaveLap = (index, updatedLap) => {
+                // Find the original lap in the unfiltered array 'laps' based on the filtered lap's properties
+                // This is complex because of filtering. We need to find the matching object in the unfiltered list.
+                
+                // Get the lap object from the currently filtered view
+                const filteredLapToUpdate = filteredLaps[index];
+
+                // Find the index of this exact object in the unfiltered 'computedLaps'
+                // Note: We cannot use findIndex on 'laps' directly because 'laps' contains raw data, while 'computedLaps' has calculated data.
+                // We must rely on comparing properties that are unique enough, like type, rawDistance, and rawTime.
+                const originalIndex = computedLaps.findIndex(lap => 
+                    lap.type === filteredLapToUpdate.type &&
+                    lap.rawDistance === filteredLapToUpdate.rawDistance && 
+                    lap.rawTime === filteredLapToUpdate.rawTime
+                );
+
+                if (originalIndex === -1) {
+                     console.error("Could not find lap to update in original array.");
+                     return;
+                }
+                
+                // Update the main 'laps' array (raw data array) which drives computedLaps
+                const newLaps = [...laps];
+                // The updatedLap contains: { type: string, distance: number, time: string (raw)}
+                // We need to store the distance as a string for the raw data array
+                newLaps[originalIndex] = {
+                    type: updatedLap.type,
+                    distance: updatedLap.distance.toString(), // Convert back to string for the raw data storage
+                    time: updatedLap.time // Raw time string
+                };
+                setLaps(newLaps);
+                setIsEditing(false);
+            };
+
+            const handleCancelEdit = () => {
+                setIsEditing(false);
+            };
+
             // --- Manual Form Handlers ---
             const handleInputChange = (e) => {
                 const { name, value } = e.target;
@@ -325,16 +511,14 @@
 
             const handleAddLap = (e) => {
                 e.preventDefault();
-                const dist = parseFloat(newLap.distance);
+                const dist = newLap.distance.trim();
                 const time = newLap.time.trim();
-
-                const timeSec = timeToSeconds(time);
-
-                if (dist > 0 && timeSec > 0) {
+                
+                if (parseFloat(dist) > 0 && timeToSeconds(time) > 0) {
                     setLaps(prev => [...prev, {
                         type: newLap.type,
-                        distance: dist,
-                        time: time,
+                        distance: dist, // Store raw input (string)
+                        time: time, // Store raw input (string)
                     }]);
                     setNewLap({ type: 'Run', distance: '', time: '' });
                 } else {
@@ -452,7 +636,7 @@
                                     ...prev, 
                                     ...extractedLaps.map(lap => ({
                                         type: lap.type || 'Run',
-                                        distance: lap.distance || 0,
+                                        distance: lap.distance ? lap.distance.toString() : '0', // Ensure raw string distance is stored
                                         time: lap.time || '0:00.00'
                                     }))
                                 ]);
@@ -698,7 +882,7 @@
                                             <option>Cool Down</option>
                                         </select>
                                         <input
-                                            type="number"
+                                            type="text"
                                             name="distance"
                                             value={newLap.distance}
                                             onChange={handleInputChange}
@@ -736,9 +920,23 @@
                         
                         {/* LAP FILTERING SECTION */}
                         <div className={`p-4 border-t border-b ${sectionHeaderClass}`}>
-                            <h2 className={`text-sm font-semibold mb-3 flex items-center uppercase tracking-wider ${primaryTextColor}`}>
-                                <FilterIcon className="w-4 h-4 mr-2 text-indigo-400" stroke={isDarkMode ? 'currentColor' : '#8B5CF6'}/> Filter Laps View
-                            </h2>
+                            <div className="flex justify-between items-center mb-3">
+                                <h2 className={`text-sm font-semibold flex items-center uppercase tracking-wider ${primaryTextColor}`}>
+                                    <FilterIcon className="w-4 h-4 mr-2 text-indigo-400" stroke={isDarkMode ? 'currentColor' : '#8B5CF6'}/> Filter Laps View
+                                </h2>
+                                {/* NEW: Edit Button */}
+                                <button
+                                    onClick={() => setIsEditing(prev => !prev)}
+                                    className={`py-1 px-3 rounded-lg text-xs font-medium transition duration-150 flex items-center 
+                                        ${isEditing 
+                                            ? 'bg-red-600 hover:bg-red-700 text-white shadow-md' 
+                                            : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                                        }`}
+                                >
+                                    <EditIcon className="w-3 h-3 mr-1"/> {isEditing ? 'Exit Edit' : 'Edit'}
+                                </button>
+                            </div>
+                            
                             {/* Filter buttons re-arranged as requested: Warm Up, Run, Rest, Cool Down */}
                             <div className="flex space-x-1 text-xs justify-between">
                                 <FilterButton type="All" currentFilter={filterType} setFilter={setFilterType} label="All" isDarkMode={isDarkMode} />
@@ -777,7 +975,16 @@
                             {/* Lap Table Rows (Dynamic height) */}
                             <div className="px-4">
                                 {filteredLaps.map((lap, index) => (
-                                    <LapRow key={index} lap={lap} index={index} isDarkMode={isDarkMode} />
+                                    <LapRow 
+                                        key={index} 
+                                        lap={lap} 
+                                        index={index} 
+                                        isDarkMode={isDarkMode} 
+                                        isEditing={isEditing}
+                                        onSave={(lapIndex, updatedData) => handleSaveLap(lapIndex, updatedData)}
+                                        onCancel={handleCancelEdit}
+                                        inputClass={inputClass}
+                                    />
                                 ))}
                                 {filteredLaps.length === 0 && !isLoading && (
                                     <p className={`text-center py-8 ${subtleTextColor}`}>No laps recorded yet or no laps match the current filter criteria.</p>
