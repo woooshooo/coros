@@ -539,6 +539,7 @@
                             const file = new File([blob], `running-stats-${new Date().toISOString().slice(0, 10)}.png`, { type: 'image/png' });
                             
                             try {
+                                // Attempt native share
                                 await navigator.share({
                                     title: 'Running Stats',
                                     text: 'Check out my filtered running stats!',
