@@ -274,7 +274,7 @@
             // API Key is now an internal placeholder. If you deploy this publicly,
             // REPLACE the empty string below with your actual Gemini API Key, 
             // understanding the security risk of exposing it client-side.
-            const [apiKey, setApiKey] = useState(""); 
+            const [apiKey, setApiKey] = useState("AIzaSyAt_eZoxQ2jjZTizFeNWUWcc97DnutbhYg"); 
             
             // State for Filtering - initial value is 'All'
             const [filterType, setFilterType] = useState('All'); 
@@ -443,7 +443,7 @@
                     // The API key is taken from the state, which is initialized to "" (the secure default).
                     // For public deployment, you must replace the initialization of apiKey above 
                     // with your actual key, or the image analysis will fail.
-                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${AIzaSyAt_eZoxQ2jjZTizFeNWUWcc97DnutbhYg}`; 
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`; 
 
                     try {
                         let response;
