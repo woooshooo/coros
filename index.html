@@ -177,28 +177,49 @@
         };
 
         /**
-         * Calculates pace (time per km) and returns a string in M'SS"/km format.
+         * Calculates pace (time per km or time per 100m) and returns a string in M'SS"/unit format.
          * @param {number} timeSeconds - Time for the lap in seconds.
          * @param {number} distanceKm - Distance for the lap in kilometers.
-         * @returns {string} Formatted pace string (e.g., "5'24"/km").
+         * @param {boolean} isSwimMode - If true, calculates pace per 100m.
+         * @returns {string} Formatted pace string (e.g., "5'24"/km" or "1'30"/100m").
          */
-        const calculatePace = (timeSeconds, distanceKm) => {
+        const calculatePace = (timeSeconds, distanceKm, isSwimMode) => {
             if (distanceKm <= 0 || timeSeconds <= 0) return '--/km';
+            
+            let paceSecondsPerUnit;
+            let unit;
 
-            const paceSecondsPerKm = timeSeconds / distanceKm;
-            const minutes = Math.floor(paceSecondsPerKm / 60);
-            const seconds = Math.round(paceSecondsPerKm % 60);
+            if (isSwimMode) {
+                // Pace per 100 meters: Convert distance from km to 100m units (km * 10)
+                const distanceInHundredsOfMeters = distanceKm * 10;
+                paceSecondsPerUnit = timeSeconds / distanceInHundredsOfMeters;
+                unit = '/100m';
+            } else {
+                // Pace per Kilometer
+                paceSecondsPerUnit = timeSeconds / distanceKm;
+                unit = '/km';
+            }
 
-            return `${minutes}'${String(seconds).padStart(2, '0')}"/km`;
+            const minutes = Math.floor(paceSecondsPerUnit / 60);
+            const seconds = Math.round(paceSecondsPerUnit % 60);
+
+            return `${minutes}'${String(seconds).padStart(2, '0')}"${unit}`;
         };
         
-        const LAP_TYPES = ['Run', 'Rest', 'Warm Up', 'Cool Down'];
+        // UPDATED LAP TYPES
+        const LAP_TYPES = [
+            'Run', 'Rest', 'Warm Up', 'Cool Down', 
+            'Freestyle', 'Breaststroke', 'Backstroke', 'Butterfly'
+        ];
+        const RUN_TYPES_BASE = ['Warm Up', 'Run', 'Rest', 'Cool Down'];
+        const SWIM_TYPES = ['Freestyle', 'Breaststroke', 'Backstroke', 'Butterfly'];
 
 
         // --- Component: Lap Row ---
 
-        const LapRow = ({ lap, index, isTotal = false, isDarkMode, isEditing, onSave, onCancel, inputClass }) => {
+        const LapRow = ({ lap, index, isTotal = false, isDarkMode, isEditing, onSave, onCancel, inputClass, activityType }) => {
             const isRest = lap.type === 'Rest';
+            const isSwim = activityType === 'SWIM';
             
             // State for holding temporary edits
             const [editLap, setEditLap] = useState({ 
@@ -267,12 +288,22 @@
                 rowClass = textColor;
             }
             
+            // Distance display logic (km or meters)
+            const displayDistance = (dist) => {
+                if (!dist) return '0.00';
+                if (isSwim) {
+                    // Convert KM to Meters for display (km * 1000)
+                    return `${(dist * 1000).toFixed(0)} m`;
+                }
+                return `${dist.toFixed(2)} km`;
+            }
+
             if (isTotal) {
                  // Total row display (no editing)
                  return (
                     <div className={`grid grid-cols-12 py-3 px-2 ${rowClass}`} id="total-lap-row">
                         <div className={`col-span-3 text-sm flex items-center ${textColor}`}>{lap.type}</div>
-                        <div className={`col-span-3 text-sm text-right ${textColor}`}>{lap.distance ? `${lap.distance.toFixed(2)} km` : '--'}</div>
+                        <div className={`col-span-3 text-sm text-right ${textColor}`}>{displayDistance(lap.distance)}</div>
                         <div className={`col-span-3 text-sm text-right ${textColor}`}>{lap.time || '--'}</div>
                         <div className={`col-span-3 text-sm text-right ${paceColor}`}>{lap.pace || '--'}</div>
                     </div>
@@ -319,7 +350,7 @@
                         )}
                     </div>
                     
-                    {/* Distance (km) */}
+                    {/* Distance (km or meters input in km) */}
                     <div className={`col-span-3 text-sm text-right ${textColor}`}>
                         {isEditing ? (
                             <input
@@ -330,9 +361,10 @@
                                 step="0.01"
                                 min="0"
                                 className={`edit-input text-right ${inputClass}`}
+                                placeholder={`Distance (km)`} // Input remains KM to maintain data consistency
                             />
                         ) : (
-                            `${lap.distance ? lap.distance.toFixed(2) : '0.00'} km`
+                            displayDistance(lap.distance)
                         )}
                     </div>
                     
@@ -354,7 +386,7 @@
 
                     {/* Pace (Always Displayed) */}
                     <div className={`col-span-3 text-sm text-right ${paceColor}`}>
-                        {lap.pace || (isRest ? '--/km' : '--')}
+                        {lap.pace || (isRest ? `--/${isSwim ? '100m' : 'km'}` : '--')}
                     </div>
                 </div>
             );
@@ -407,6 +439,39 @@
             
             // NEW: Dark Mode State, defaulting to true
             const [isDarkMode, setIsDarkMode] = useState(true);
+            
+            // NEW: State to track if swim data is present, controlling UI units and filter visibility
+            const [showSwimFilters, setShowSwimFilters] = useState(false);
+            // State to hold the detected activity type (RUN or SWIM)
+            const [activityType, setActivityType] = useState('RUN');
+            // NEW: Set of existing lap types for dynamic filter visibility
+            const [existingLapTypes, setExistingLapTypes] = useState(new Set());
+
+
+            // --- Effects to Manage Global State ---
+
+            // Effect to check for swim data and update units/filters/existing types
+            useEffect(() => {
+                const types = new Set(laps.map(lap => lap.type));
+                setExistingLapTypes(types);
+
+                const hasSwimLaps = laps.some(lap => SWIM_TYPES.includes(lap.type));
+                setShowSwimFilters(hasSwimLaps);
+                
+                // Set application-wide activity context based on unfiltered data
+                if (hasSwimLaps) {
+                     setActivityType('SWIM');
+                } else {
+                     setActivityType('RUN');
+                }
+                
+                // If the current filter type is no longer in the laps, reset to All
+                if (filterType !== 'All' && !types.has(filterType)) {
+                    setFilterType('All');
+                }
+
+            }, [laps, filterType]);
+
 
             // Theme classes updated to use custom hex colors
             const modeClass = isDarkMode ? 'bg-dark-bg text-white' : 'bg-gray-100 text-gray-900 light-mode'; // Darker background
@@ -424,6 +489,8 @@
 
             // --- Computed Run Data (Unfiltered Laps with calculations) ---
             const computedLaps = useMemo(() => {
+                const isSwimMode = activityType === 'SWIM';
+
                 return laps.map(lap => {
                     // Raw data is the input from forms/API before processing
                     const rawDistance = lap.distance; 
@@ -431,7 +498,8 @@
                     
                     const dist = parseFloat(rawDistance) || 0; 
                     const timeSec = timeToSeconds(rawTime);
-                    const pace = calculatePace(timeSec, dist);
+                    // Use the application's current activity mode for pace calculation
+                    const pace = calculatePace(timeSec, dist, isSwimMode);
                     const formattedTime = secondsToTimeString(timeSec);
                     
                     return { 
@@ -439,15 +507,16 @@
                         timeSec, 
                         pace,
                         time: formattedTime, // formatted for display
-                        distance: dist, // numerical distance
+                        distance: dist, // numerical distance (ALWAYS stored in KM)
                         rawDistance, // raw input for editing
                         rawTime // raw input for editing
                     };
                 });
-            }, [laps]);
+            }, [laps, activityType]); // Re-run if activityType changes
+
 
             // Filtered Laps based on user selection
-            const allFilterableTypes = ['Run', 'Rest', 'Warm Up', 'Cool Down'];
+            const allFilterableTypes = LAP_TYPES; // Use the global constant for filtering
 
             const filteredLaps = useMemo(() => {
                 if (filterType === 'All') {
@@ -462,6 +531,7 @@
 
             // Totals for the currently filtered view
             const filteredSummary = useMemo(() => {
+                const isSwimMode = activityType === 'SWIM';
                 let totalTimeSeconds = 0;
                 let totalDistance = 0;
                 
@@ -471,7 +541,8 @@
                 });
 
                 const totalTimeStr = secondsToTimeString(totalTimeSeconds);
-                const avgPace = calculatePace(totalTimeSeconds, totalDistance);
+                // Use the application's current activity mode for pace calculation
+                const avgPace = calculatePace(totalTimeSeconds, totalDistance, isSwimMode);
 
                 return {
                     totalTimeSeconds,
@@ -479,7 +550,7 @@
                     totalTimeStr,
                     avgPace
                 };
-            }, [filteredLaps]);
+            }, [filteredLaps, activityType]);
 
 
             // --- Lap Editing Handlers ---
@@ -542,6 +613,10 @@
 
             const handleClearLaps = () => {
                 setLaps([]);
+                // Reset activity type when clearing all laps
+                setActivityType('RUN');
+                setShowSwimFilters(false);
+                setFilterType('All');
             };
             
             // --- Image Processing Handlers ---
@@ -575,7 +650,7 @@
                     const base64Data = reader.result.split(',')[1];
                     const mimeType = uploadedImage.type;
                     
-                    const systemPrompt = `You are a data extraction expert. Your task is to extract the lap data (Lap Type, Distance in km, and Time) from the provided running stats image. Do NOT include the pace column or any total/summary rows. Use the exact type names found (e.g., 'Run', 'Rest', 'Warm Up', 'Cool Down'). For time, preserve the original format as a string (e.g., 6:00.00). Provide the output as a JSON array strictly following the schema.`;
+                    const systemPrompt = `You are a data extraction expert. Your task is to extract the lap data (Lap Type, Distance in km, and Time) from the provided running stats image. Do NOT include the pace column or any total/summary rows. Use the exact type names found (e.g., 'Run', 'Rest', 'Warm Up', 'Cool Down', 'Freestyle', 'Breaststroke', 'Backstroke', 'Butterfly'). For time, preserve the original format as a string (e.g., 6:00.00). Provide the output as a JSON array strictly following the schema.`;
                     const userQuery = "Extract the lap type, distance, and time for every row in the table visible in this image.";
                     
                     const payload = {
@@ -601,7 +676,7 @@
                                 items: {
                                     type: "OBJECT",
                                     properties: {
-                                        "type": { "type": "STRING", "description": "The type of activity (e.g., Run, Rest, Warm Up, Cool Down)." },
+                                        "type": { "type": "STRING", "description": "The type of activity (e.g., Run, Rest, Warm Up, Cool Down, Freestyle, etc.)." },
                                         "distance": { "type": "NUMBER", "description": "The distance covered in kilometers (e.g., 2.16)." },
                                         "time": { "type": "STRING", "description": "The time duration in M:SS.SS or H:MM:SS.SS format (e.g., 6:00.00)." }
                                     },
@@ -644,6 +719,13 @@
                         if (jsonText) {
                             const extractedLaps = JSON.parse(jsonText);
                             if (Array.isArray(extractedLaps)) {
+                                // Check if any extracted lap is a swim type
+                                const containsSwim = extractedLaps.some(lap => SWIM_TYPES.includes(lap.type));
+                                if (containsSwim) {
+                                    setActivityType('SWIM');
+                                    setShowSwimFilters(true);
+                                }
+                                
                                 // Add new laps to existing list
                                 setLaps(prev => [
                                     ...prev, 
@@ -878,7 +960,7 @@
                                 aria-expanded={isInputExpanded}
                             >
                                 <span className="flex items-center">
-                                    <BarChartIcon className="w-4 h-4 mr-2 text-blue-400" stroke={isDarkMode ? 'currentColor' : '#3B82F6'}/> Add New Lap Manually
+                                    <BarChartIcon className="w-4 h-4 mr-2 text-blue-400" stroke={isDarkMode ? 'currentColor' : '#3B82F6'}/> Add New {activityType === 'SWIM' ? 'Swimming' : 'Running'} Lap Manually
                                 </span>
                                 {isInputExpanded ? <ChevronUpIcon className="w-5 h-5 text-blue-400"/> : <ChevronDownIcon className="w-5 h-5 text-blue-400"/>}
                             </button>
@@ -899,17 +981,14 @@
                                             onChange={handleInputChange}
                                             className={`w-1/3 p-2 rounded-lg text-sm ${inputClass}`}
                                         >
-                                            <option>Run</option>
-                                            <option>Rest</option>
-                                            <option>Warm Up</option>
-                                            <option>Cool Down</option>
+                                            {LAP_TYPES.map(type => <option key={type} value={type}>{type}</option>)}
                                         </select>
                                         <input
                                             type="text"
                                             name="distance"
                                             value={newLap.distance}
                                             onChange={handleInputChange}
-                                            placeholder="Distance (km)"
+                                            placeholder={`Distance (${activityType === 'SWIM' ? 'km' : 'km'})`}
                                             step="0.01"
                                             className={`w-1/3 p-2 rounded-lg text-sm ${inputClass}`}
                                         />
@@ -947,27 +1026,55 @@
                                 <h2 className={`text-sm font-semibold flex items-center uppercase tracking-wider ${primaryTextColor}`}>
                                     <FilterIcon className="w-4 h-4 mr-2 text-indigo-400" stroke={isDarkMode ? 'currentColor' : '#8B5CF6'}/> Filter Laps View
                                 </h2>
-                                {/* NEW: Edit Button */}
-                                <button
-                                    onClick={() => setIsEditing(prev => !prev)}
-                                    className={`py-1 px-3 rounded-lg text-xs font-medium transition duration-150 flex items-center 
-                                        ${isEditing 
-                                            ? 'bg-red-600 hover:bg-red-700 text-white shadow-md' 
-                                            : 'bg-indigo-600 hover:bg-indigo-700 text-white'
-                                        }`}
-                                >
-                                    <EditIcon className="w-3 h-3 mr-1"/> {isEditing ? 'Exit Edit' : 'Edit'}
-                                </button>
+                                <div className="flex space-x-2">
+                                    {/* NEW: Refresh Button */}
+                                    <button
+                                        onClick={() => window.location.reload()}
+                                        className={`py-1 px-3 rounded-lg text-xs font-medium transition duration-150 flex items-center bg-gray-600 hover:bg-gray-700 text-white shadow-md`}
+                                        title="Reload Page"
+                                    >
+                                        <RefreshCwIcon className="w-3 h-3 mr-1"/> Refresh
+                                    </button>
+                                    {/* Edit Button */}
+                                    <button
+                                        onClick={() => setIsEditing(prev => !prev)}
+                                        className={`py-1 px-3 rounded-lg text-xs font-medium transition duration-150 flex items-center 
+                                            ${isEditing 
+                                                ? 'bg-red-600 hover:bg-red-700 text-white shadow-md' 
+                                                : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                                            }`}
+                                    >
+                                        <EditIcon className="w-3 h-3 mr-1"/> {isEditing ? 'Exit Edit' : 'Edit'}
+                                    </button>
+                                </div>
                             </div>
                             
                             {/* Filter buttons re-arranged as requested: Warm Up, Run, Rest, Cool Down */}
                             <div className="flex space-x-1 text-xs justify-between">
+                                {/* Always show ALL button */}
                                 <FilterButton type="All" currentFilter={filterType} setFilter={setFilterType} label="All" isDarkMode={isDarkMode} />
-                                <FilterButton type="Warm Up" currentFilter={filterType} setFilter={setFilterType} label="Warm Up" isDarkMode={isDarkMode} />
-                                <FilterButton type="Run" currentFilter={filterType} setFilter={setFilterType} label="Run" isDarkMode={isDarkMode} />
-                                <FilterButton type="Rest" currentFilter={filterType} setFilter={setFilterType} label="Rest" isDarkMode={isDarkMode} />
-                                <FilterButton type="Cool Down" currentFilter={filterType} setFilter={setFilterType} label="Cool Down" isDarkMode={isDarkMode} />
+                                
+                                {/* Dynamically show Running-related filters */}
+                                {RUN_TYPES_BASE.map(type => 
+                                    type !== 'Rest' && type !== 'Warm Up' && type !== 'Cool Down' && type !== 'Run' && existingLapTypes.has(type) && (
+                                        <FilterButton key={type} type={type} currentFilter={filterType} setFilter={setFilterType} label={type} isDarkMode={isDarkMode} />
+                                    )
+                                )}
+                                
+                                {existingLapTypes.has('Warm Up') && <FilterButton type="Warm Up" currentFilter={filterType} setFilter={setFilterType} label="Warm Up" isDarkMode={isDarkMode} />}
+                                {existingLapTypes.has('Run') && <FilterButton type="Run" currentFilter={filterType} setFilter={setFilterType} label="Run" isDarkMode={isDarkMode} />}
+                                {existingLapTypes.has('Rest') && <FilterButton type="Rest" currentFilter={filterType} setFilter={setFilterType} label="Rest" isDarkMode={isDarkMode} />}
+                                {existingLapTypes.has('Cool Down') && <FilterButton type="Cool Down" currentFilter={filterType} setFilter={setFilterType} label="Cool Down" isDarkMode={isDarkMode} />}
                             </div>
+                            
+                            {/* NEW: Swimming filter buttons (Visible only if swim data is present) */}
+                            {showSwimFilters && (
+                                <div className="flex space-x-1 text-xs justify-between mt-2">
+                                    {SWIM_TYPES.map(type => existingLapTypes.has(type) && (
+                                        <FilterButton key={type} type={type} currentFilter={filterType} setFilter={setFilterType} label={type} isDarkMode={isDarkMode} />
+                                    ))}
+                                </div>
+                            )}
                         </div>
 
                         {/* NEW CONTAINER: CAPTURE TARGET for PNG export */}
@@ -976,13 +1083,13 @@
                             {/* Lap Table Header */}
                             <div className="px-4 pt-4">
                                 <div className={`grid grid-cols-12 text-xs font-semibold py-2 uppercase ${tableHeaderClass}`}>
-                                    {/* Left-aligned Lap */}
+                                    {/* Left-aligned Lap (Dynamically shows activity type) */}
                                     <div className="col-span-3 flex items-center">
-                                         <ListOrderedIcon className="w-3 h-3 mr-1"/> LAP
+                                         <ListOrderedIcon className="w-3 h-3 mr-1"/> {activityType === 'SWIM' ? 'SWIM' : 'LAP'}
                                     </div>
                                     {/* Right-aligned Distance (flex items-center for vertical alignment) */}
                                     <div className="col-span-3 text-right flex items-center justify-end whitespace-nowrap">
-                                        <ActivityIcon className="w-3 h-3 mr-1"/> DISTANCE
+                                        <ActivityIcon className="w-3 h-3 mr-1"/> DISTANCE ({activityType === 'SWIM' ? 'M' : 'KM'})
                                     </div>
                                     {/* Right-aligned Time (flex items-center for vertical alignment) */}
                                     <div className="col-span-3 text-right flex items-center justify-end whitespace-nowrap">
@@ -1007,6 +1114,7 @@
                                         onSave={(lapIndex, updatedData) => handleSaveLap(lapIndex, updatedData)}
                                         onCancel={handleCancelEdit}
                                         inputClass={inputClass}
+                                        activityType={activityType}
                                     />
                                 ))}
                                 {filteredLaps.length === 0 && !isLoading && (
@@ -1025,6 +1133,7 @@
                                         pace: filteredSummary.avgPace,
                                     }}
                                     isDarkMode={isDarkMode}
+                                    activityType={activityType}
                                 />
                             </div>
                         </div>
@@ -1032,7 +1141,9 @@
                         
                         {/* Centered Total Text - VISIBLE in UI, EXCLUDED from capture */}
                         <div className={`flex justify-center mt-4 text-xs ${subtleTextColor} space-x-4 px-4`}>
-                            <p>Total Distance: <span className={`${primaryTextColor} font-medium`}>{filteredSummary.totalDistance.toFixed(2)} km</span></p>
+                            <p>Total Distance: <span className={`${primaryTextColor} font-medium`}>
+                                {filteredSummary.totalDistance.toFixed(2)} {activityType === 'SWIM' ? 'km' : 'km'}
+                            </span></p>
                             <p>Total Time: <span className={`${primaryTextColor} font-medium`}>{filteredSummary.totalTimeStr}</span></p>
                         </div>
                         
@@ -1048,7 +1159,7 @@
                         </div>
                     </div>
                     <div className={`text-center text-xs mt-4 ${subtleTextColor}`}>
-                        Pace is calculated as Time per Kilometer (M'SS"/km).
+                        Pace is calculated as Time per {activityType === 'SWIM' ? '100 Meters' : 'Kilometer'} (M'SS"/{activityType === 'SWIM' ? '100m' : 'km'}).
                     </div>
                 </div>
             );
