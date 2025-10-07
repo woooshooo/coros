@@ -46,7 +46,7 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useMemo } = React;
+        const { useState, useMemo, useEffect } = React;
 
         // --- Inline SVG Icons (Replaces lucide-react imports) ---
 
@@ -255,6 +255,8 @@
         };
 
         // --- Main Application Component ---
+        
+        const API_KEY_STORAGE_KEY = 'geminiApiKey'; // Key for local storage persistence
 
         const App = () => {
             const [laps, setLaps] = useState([]);
@@ -269,7 +271,7 @@
             const [isLoading, setIsLoading] = useState(false);
             const [apiError, setApiError] = useState('');
             
-            // NEW: State for API Key
+            // State for API Key, initialized by checking localStorage
             const [apiKey, setApiKey] = useState(''); 
             
             // State for Filtering - initial value is 'All'
@@ -280,6 +282,33 @@
             
             // State for collapsing the image upload form (collapsed by default)
             const [isUploadExpanded, setIsUploadExpanded] = useState(false);
+            
+            // --- API Key Persistence Logic (Restored) ---
+            useEffect(() => {
+                try {
+                    const storedKey = localStorage.getItem(API_KEY_STORAGE_KEY);
+                    if (storedKey) {
+                        setApiKey(storedKey);
+                    }
+                } catch (e) {
+                    console.error("Could not access localStorage:", e);
+                }
+            }, []);
+
+            const handleApiKeyChange = (e) => {
+                const key = e.target.value;
+                setApiKey(key);
+                try {
+                    if (key) {
+                        localStorage.setItem(API_KEY_STORAGE_KEY, key);
+                    } else {
+                        localStorage.removeItem(API_KEY_STORAGE_KEY);
+                    }
+                } catch (e) {
+                    console.error("Could not save to localStorage:", e);
+                }
+            };
+            // ------------------------------------------
 
 
             // --- Computed Run Data (Unfiltered Laps with calculations) ---
@@ -380,7 +409,7 @@
 
             const processImageWithGemini = async () => {
                 if (!apiKey) {
-                    setApiError("API Key is required to analyze the image.");
+                    setApiError("API Key is required to analyze the image. Please enter it above.");
                     setTimeout(() => setApiError(''), 3000);
                     return;
                 }
@@ -412,7 +441,7 @@
                                     {
                                         inlineData: {
                                             mimeType: mimeType,
-                                            data: base64Data
+                                            data: base64Data 
                                         }
                                     }
                                 ]
@@ -436,8 +465,8 @@
                         }
                     };
                     
-                    // Use the user-provided API key here
-                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+                    // --- CRITICAL CHANGE: Using the Gemini API URL directly with the user's API key ---
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`; 
 
                     try {
                         let response;
@@ -459,7 +488,7 @@
                                 await new Promise(resolve => setTimeout(resolve, delay));
                                 delay *= 2; // Exponential backoff
                             } else {
-                                throw new Error(`API failed after ${maxRetries} attempts.`);
+                                throw new Error(`API failed after ${maxRetries} attempts. Check your key and network connection.`);
                             }
                         }
                         
@@ -482,8 +511,8 @@
                         }
 
                     } catch (error) {
-                        console.error("Gemini API Error:", error);
-                        setApiError(`Data extraction failed: ${error.message}. This is often due to an invalid API Key.`);
+                        console.error("API Error:", error);
+                        setApiError(`Data extraction failed: ${error.message}. Please verify your API Key and try a different image.`);
                     } finally {
                         setIsLoading(false);
                     }
@@ -521,14 +550,16 @@
                                 }}
                             >
                                 <div className="space-y-3 mt-4">
-                                    {/* NEW: API Key Input */}
+                                    {/* RESTORED: API Key Input */}
                                     <input
                                         type="password"
                                         value={apiKey}
-                                        onChange={(e) => setApiKey(e.target.value)}
-                                        placeholder="Enter your Gemini API Key (Required)"
-                                        className="w-full p-2 bg-gray-700 border border-gray-600 rounded-lg text-sm focus:ring-green-500 focus:border-green-500"
+                                        onChange={handleApiKeyChange}
+                                        placeholder={apiKey ? "API Key Loaded" : "Enter your Gemini API Key (Required for analysis)"}
+                                        className={`w-full p-2 border rounded-lg text-sm focus:ring-green-500 focus:border-green-500 
+                                            ${apiKey ? 'bg-green-900/50 border-green-700 text-green-300' : 'bg-gray-700 border-gray-600'}`}
                                     />
+                                    
                                     {/* File Uploader and Analyzer Button */}
                                     <div className="flex space-x-2 items-center">
                                         <label className="flex-1">
