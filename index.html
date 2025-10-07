@@ -483,7 +483,8 @@
                 const rootCard = document.getElementById('stats-card');
                 
                 if (!input || !rootCard || !totalRowElement) {
-                    setApiError("Error finding capture area.");
+                    // Log error but don't show UI message for this internal error
+                    console.error("Internal Error: Could not find capture area elements.");
                     return;
                 }
 
@@ -546,14 +547,13 @@
                                     files: [file],
                                 });
                             } catch (error) {
-                                console.error('Error sharing file via Web Share API:', error);
-                                setApiError("Share failed. Ensure your connection is secure (HTTPS). Falling back to download.");
-                                // Fallback to download if sharing is dismissed or failed
+                                console.error('Native share failed on this device/browser (Error:', error, '). Falling back to file download.');
+                                // NO UI ERROR MESSAGE HERE - Just fall back for a smooth download
                                 handleDownloadFallback(canvas);
                             }
                         } else {
                             // --- Desktop/Fallback Download Logic ---
-                            setApiError("Web Share API not supported. Image downloaded.");
+                            console.warn("Web Share API not supported. Image downloaded.");
                             handleDownloadFallback(canvas);
                         }
                     }, 'image/png');
