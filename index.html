@@ -4,6 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Running Stats Analyzer by Web</title>
+
+    <!-- PWA Manifest Link -->
+    <link rel="manifest" href="./manifest.json">
+    
+    <!-- === iOS/Safari Specific PWA Tags for Icon and Name === -->
+    <!-- Forces iOS to run in full-screen mode like a native app -->
+    <meta name="apple-mobile-web-app-capable" content="yes"> 
+    <!-- Sets the text under the icon (Home Screen Name) -->
+    <meta name="apple-mobile-web-app-title" content="RunStats"> 
+    <!-- Links to the high-resolution icon used by iOS -->
+    <link rel="apple-touch-icon" href="/android-chrome-192x192.png"> 
+    <!-- ======================================================= -->
+
     <!-- Load Tailwind CSS Library FIRST -->
     <script src="https://cdn.tailwindcss.com"></script>
     
@@ -184,7 +197,7 @@
          * @returns {string} Formatted pace string (e.g., "5'24"/km" or "1'30"/100m").
          */
         const calculatePace = (timeSeconds, distanceKm, isSwimMode) => {
-            if (distanceKm <= 0 || timeSeconds <= 0) return '--/km';
+            if (distanceKm <= 0 || timeSeconds <= 0) return `--/${isSwimMode ? '100m' : 'km'}`;
             
             let paceSecondsPerUnit;
             let unit;
@@ -192,6 +205,8 @@
             if (isSwimMode) {
                 // Pace per 100 meters: Convert distance from km to 100m units (km * 10)
                 const distanceInHundredsOfMeters = distanceKm * 10;
+                if (distanceInHundredsOfMeters <= 0) return '--/100m';
+
                 paceSecondsPerUnit = timeSeconds / distanceInHundredsOfMeters;
                 unit = '/100m';
             } else {
@@ -224,7 +239,8 @@
             // State for holding temporary edits
             const [editLap, setEditLap] = useState({ 
                 type: lap.type, 
-                distance: lap.rawDistance || parseFloat(lap.distance).toFixed(2), 
+                // Use rawDistance if available, otherwise use formatted distance from computed lap
+                distance: lap.rawDistance !== undefined ? lap.rawDistance : parseFloat(lap.distance).toFixed(2),
                 time: lap.rawTime || lap.time 
             });
 
@@ -249,15 +265,14 @@
                 const dist = parseFloat(editLap.distance);
                 const timeSec = timeToSeconds(editLap.time);
 
-                if (dist > 0 && timeSec > 0) {
+                if (dist > 0 && timeSec > 0 && dist < 1000) { // Basic sanity check: distance < 1000km
                     onSave(index, { 
                         type: editLap.type, 
-                        distance: dist, 
+                        distance: editLap.distance, // Keep as string for raw data fidelity
                         time: editLap.time // Store raw time input
                     });
                 } else {
-                    // Simple console log validation feedback
-                    console.error("Validation failed: Distance must be > 0 and Time must be valid.");
+                    alert("Validation failed: Distance must be > 0 (and less than 1000 km) and Time must be valid (e.g., '5' or '5:30.00').");
                 }
             };
 
@@ -290,12 +305,13 @@
             
             // Distance display logic (km or meters)
             const displayDistance = (dist) => {
-                if (!dist) return '0.00';
+                if (!dist && dist !== 0) return '0.00';
+                const distNum = parseFloat(dist);
                 if (isSwim) {
                     // Convert KM to Meters for display (km * 1000)
-                    return `${(dist * 1000).toFixed(0)} m`;
+                    return `${(distNum * 1000).toFixed(0)} m`;
                 }
-                return `${dist.toFixed(2)} km`;
+                return `${distNum.toFixed(2)} km`;
             }
 
             if (isTotal) {
@@ -440,7 +456,7 @@
             // NEW: Dark Mode State, defaulting to true
             const [isDarkMode, setIsDarkMode] = useState(true);
             
-            // NEW: State to track if swim data is present, controlling UI units and filter visibility
+            // State to track if swim data is present, controlling UI units and filter visibility
             const [showSwimFilters, setShowSwimFilters] = useState(false);
             // State to hold the detected activity type (RUN or SWIM)
             const [activityType, setActivityType] = useState('RUN');
@@ -471,6 +487,22 @@
                 }
 
             }, [laps, filterType]);
+
+
+            // PWA Service Worker Registration
+            useEffect(() => {
+                if ('serviceWorker' in navigator) {
+                    window.addEventListener('load', () => {
+                        navigator.serviceWorker.register('./service-worker.js')
+                            .then(registration => {
+                                console.log('SW registered:', registration);
+                            })
+                            .catch(registrationError => {
+                                console.log('SW registration failed:', registrationError);
+                            });
+                    });
+                }
+            }, []);
 
 
             // Theme classes updated to use custom hex colors
@@ -560,7 +592,6 @@
 
                 // Find the index of this exact lap object in the UNFILTERED list (computedLaps)
                 const originalIndex = computedLaps.findIndex(lap => 
-                    lap.type === filteredLapToUpdate.type &&
                     lap.rawDistance === filteredLapToUpdate.rawDistance && 
                     lap.rawTime === filteredLapToUpdate.rawTime
                 );
@@ -572,11 +603,10 @@
                 
                 // Update the main 'laps' array (raw data array) which drives computedLaps
                 const newLaps = [...laps];
-                // The updatedLap contains: { type: string, distance: number, time: string (raw)}
-                // We need to store the distance as a string for the raw data array
+                // The updatedLap contains: { type: string, distance: string (raw), time: string (raw)}
                 newLaps[originalIndex] = {
                     type: updatedLap.type,
-                    distance: updatedLap.distance.toString(), // Convert back to string for the raw data storage
+                    distance: updatedLap.distance, // Raw string distance
                     time: updatedLap.time // Raw time string
                 };
                 setLaps(newLaps);
@@ -756,12 +786,6 @@
             };
             
             // --- Share Image Handler (Updated for Web Share API) ---
-            const isMobile = useMemo(() => {
-                if (typeof window === 'undefined') return false;
-                const toMatch = [/Android/i, /webOS/i, /iPhone/i, /iPad/i, /iPod/i, /BlackBerry/i, /Windows Phone/i];
-                return toMatch.some((toMatchItem) => navigator.userAgent.match(toMatchItem));
-            }, []);
-
             const handleShareImage = () => {
                 const input = document.getElementById('share-target-content');
                 const totalRowElement = document.getElementById('total-lap-row'); // The specific total lap row
@@ -818,7 +842,7 @@
                         document.body.style.backgroundColor = originalBodyBg;
                         document.body.className = originalBodyClass;
 
-                        // --- Share Logic: Separate paths for mobile (share) vs desktop (download) ---
+                        // --- Share Logic: Attempt Download first, then Native Share ---
 
                         const handleDownloadFallback = (canvas) => {
                             const image = canvas.toDataURL('image/png');
@@ -829,18 +853,18 @@
                             link.click();
                             document.body.removeChild(link);
                         }
-
-                        // A. Attempt Download (Reliable for Desktop, often fails/defaults to file download on mobile)
+                        
+                        // A. Attempt Download (Reliable for Desktop, but can fail on strict mobile browsers)
                         try {
                             handleDownloadFallback(canvas);
                             console.log("Download initiated successfully.");
                             return; // Stop here if download worked
                         } catch (e) {
-                            console.error("Direct download failed. Attempting native share as fallback.");
+                            console.error("Direct download failed. Attempting native share as fallback. Error:", e);
                         }
 
 
-                        // B. Attempt Native Web Share API (Best for "Save to Photos" on mobile)
+                        // B. Attempt Native Web Share API (Best for "Save to Photos" on mobile when download fails)
                         if (navigator.share && blob) {
                             const file = new File([blob], `running-stats-${new Date().toISOString().slice(0, 10)}.png`, { type: 'image/png' });
                             
@@ -852,17 +876,16 @@
                                 });
                             } catch (error) {
                                 console.error('Native share failed or was dismissed. Error:', error);
-                                // No further action, as download was already attempted and failed.
                             }
                         } else {
-                            console.log("Native Web Share API not supported in this context or by this browser.");
+                            console.log("Native Web Share API not supported or context is invalid for sharing.");
                         }
 
 
                     }, 'image/png');
                 }).catch(err => {
                     console.error("Image capture failed:", err);
-                    setApiError("Failed to generate image. Try another browser.");
+                    alert("Failed to generate image. Try another browser.");
                     
                     // Always restore styles even on error
                     totalRowElement.className = originalTotalRowClass;
@@ -1054,20 +1077,14 @@
                                 {/* Always show ALL button */}
                                 <FilterButton type="All" currentFilter={filterType} setFilter={setFilterType} label="All" isDarkMode={isDarkMode} />
                                 
-                                {/* Dynamically show Running-related filters */}
-                                {RUN_TYPES_BASE.map(type => 
-                                    type !== 'Rest' && type !== 'Warm Up' && type !== 'Cool Down' && type !== 'Run' && existingLapTypes.has(type) && (
-                                        <FilterButton key={type} type={type} currentFilter={filterType} setFilter={setFilterType} label={type} isDarkMode={isDarkMode} />
-                                    )
-                                )}
-                                
+                                {/* Dynamically show Running-related filters if they exist in the data */}
                                 {existingLapTypes.has('Warm Up') && <FilterButton type="Warm Up" currentFilter={filterType} setFilter={setFilterType} label="Warm Up" isDarkMode={isDarkMode} />}
                                 {existingLapTypes.has('Run') && <FilterButton type="Run" currentFilter={filterType} setFilter={setFilterType} label="Run" isDarkMode={isDarkMode} />}
                                 {existingLapTypes.has('Rest') && <FilterButton type="Rest" currentFilter={filterType} setFilter={setFilterType} label="Rest" isDarkMode={isDarkMode} />}
                                 {existingLapTypes.has('Cool Down') && <FilterButton type="Cool Down" currentFilter={filterType} setFilter={setFilterType} label="Cool Down" isDarkMode={isDarkMode} />}
                             </div>
                             
-                            {/* NEW: Swimming filter buttons (Visible only if swim data is present) */}
+                            {/* NEW: Swimming filter buttons (Visible only if swim data is present and exists in laps) */}
                             {showSwimFilters && (
                                 <div className="flex space-x-1 text-xs justify-between mt-2">
                                     {SWIM_TYPES.map(type => existingLapTypes.has(type) && (
@@ -1106,12 +1123,12 @@
                             <div className="px-4">
                                 {filteredLaps.map((lap, index) => (
                                     <LapRow 
-                                        key={index} 
+                                        key={`${lap.rawTime}-${lap.rawDistance}-${index}`} 
                                         lap={lap} 
                                         index={index} 
                                         isDarkMode={isDarkMode} 
                                         isEditing={isEditing}
-                                        onSave={(lapIndex, updatedData) => handleSaveLap(lapIndex, updatedData)}
+                                        onSave={(lapIndex, updatedData) => handleSaveLap(index, updatedData)} // Pass index from filteredLaps
                                         onCancel={handleCancelEdit}
                                         inputClass={inputClass}
                                         activityType={activityType}
