@@ -230,6 +230,30 @@
         const SWIM_TYPES = ['Freestyle', 'Breaststroke', 'Backstroke', 'Butterfly'];
 
 
+        // --- Data Persistence Utilities ---
+        const STORAGE_KEY = 'runStatsLaps';
+
+        const getInitialLaps = () => {
+            try {
+                const storedLaps = localStorage.getItem(STORAGE_KEY);
+                if (storedLaps) {
+                    return JSON.parse(storedLaps);
+                }
+            } catch (error) {
+                console.error("Error reading from localStorage:", error);
+            }
+            return [];
+        };
+        
+        const saveLapsToStorage = (laps) => {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(laps));
+            } catch (error) {
+                console.error("Error saving to localStorage:", error);
+            }
+        };
+
+
         // --- Component: Lap Row ---
 
         const LapRow = ({ lap, index, isTotal = false, isDarkMode, isEditing, onSave, onCancel, inputClass, activityType }) => {
@@ -434,7 +458,8 @@
         // --- Main Application Component ---
 
         const App = () => {
-            const [laps, setLaps] = useState([]);
+            // UPDATED: Initialize laps state by attempting to load from localStorage
+            const [laps, setLaps] = useState(getInitialLaps);
             const [newLap, setNewLap] = useState({
                 type: 'Run',
                 distance: '',
@@ -466,7 +491,7 @@
 
             // --- Effects to Manage Global State ---
 
-            // Effect to check for swim data and update units/filters/existing types
+            // EFFECT 1: Check for swim data and update units/filters/existing types
             useEffect(() => {
                 const types = new Set(laps.map(lap => lap.type));
                 setExistingLapTypes(types);
@@ -487,6 +512,11 @@
                 }
 
             }, [laps, filterType]);
+
+            // EFFECT 2: Save laps state to localStorage whenever the laps array changes
+            useEffect(() => {
+                saveLapsToStorage(laps);
+            }, [laps]);
 
 
             // PWA Service Worker Registration
@@ -642,6 +672,8 @@
             };
 
             const handleClearLaps = () => {
+                // UPDATE: Clear localStorage as well
+                localStorage.removeItem(STORAGE_KEY);
                 setLaps([]);
                 // Reset activity type when clearing all laps
                 setActivityType('RUN');
