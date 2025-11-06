@@ -1338,6 +1338,13 @@
                                     <FilterIcon className="w-4 h-4 mr-2 text-indigo-400" stroke={isDarkMode ? 'currentColor' : '#8B5CF6'}/> Filter Laps View
                                 </h2>
                                 <div className="flex space-x-2">
+                                    <button
+                                            type="button"
+                                            onClick={handleClearLaps}
+                                            className="py-1 px-3 rounded-lg text-xs font-medium transition duration-150 flex items-center bg-gray-600 hover:bg-red-700 text-white shadow-md"
+                                        >
+                                            <RefreshCwIcon className="w-3 h-3"/> Clear All
+                                        </button>
                                     {/* NEW: Refresh Button */}
                                     <button
                                         onClick={() => window.location.reload()}
