@@ -9,18 +9,15 @@
     <link rel="manifest" href="./manifest.json">
     
     <!-- === iOS/Safari Specific PWA Tags for Icon and Name === -->
-    <!-- Forces iOS to run in full-screen mode like a native app -->
     <meta name="apple-mobile-web-app-capable" content="yes"> 
-    <!-- Sets the text under the icon (Home Screen Name) -->
     <meta name="apple-mobile-web-app-title" content="RunStats"> 
-    <!-- Links to the high-resolution icon used by iOS -->
     <link rel="apple-touch-icon" href="/android-chrome-192x192.png"> 
     <!-- ======================================================= -->
 
     <!-- Load Tailwind CSS Library FIRST -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Load Tailwind Configuration SECOND (must run after the library is loaded) -->
+    <!-- Load Tailwind Configuration SECOND -->
     <script>
         tailwind.config = {
             theme: {
@@ -38,7 +35,6 @@
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <!-- Load ReactDOM FOURTH -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <!-- Load Babel for JSX compilation (Largest potential bottleneck) -->
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <!-- Load html2canvas for capturing DOM as image -->
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
@@ -96,8 +92,6 @@
         const { useState, useMemo, useEffect } = React;
 
         // --- Inline SVG Icons (Optimized for minimal DOM changes) ---
-
-        // Added 'align-middle' and 'inline-block' to the default className for perfect vertical centering with text.
         const Icon = ({ path, className = "w-4 h-4 mr-2 inline-block align-middle" }) => (
             <svg 
                 xmlns="http://www.w3.org/2000/svg" 
@@ -115,7 +109,6 @@
             </svg>
         );
 
-        // Define icons only once for use throughout the component
         const RefreshCwIcon = (props) => ( <Icon {...props} path={<><path d="M23 4v6h-6"/><path d="M2 12s2-2 4-2h12s4 2 4 2"/><path d="M1 20v-6h6"/><path d="M22 12s-2 2-4 2H6s-4-2-4-2"/></>}/> );
         const PlayIcon = (props) => ( <Icon {...props} path={<polygon points="6 3 20 12 6 21 6 3"/>}/> );
         const BarChartIcon = (props) => ( <Icon {...props} path={<><line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/></>}/> );
@@ -133,20 +126,12 @@
         const MoonIcon = (props) => ( <Icon {...props} path={<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>}/> );
         const ShareIcon = (props) => ( <Icon {...props} path={<><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" x2="12" y1="2" y2="15"/></>}/> );
         const EditIcon = (props) => ( <Icon {...props} path={<path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>}/> );
-        // FIX: Only one JSX fragment wrapper is used.
         const SaveIcon = (props) => ( <Icon {...props} path={<><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 7 14 7"/></>}/> );
-        // FIX: Only one JSX fragment wrapper is used.
         const XIcon = (props) => ( <Icon {...props} path={<><path d="M18 6 6 18"/><path d="m6 6 12 12"/></>}/> );
 
 
-        // --- Utility Functions for Time and Pace Calculation ---
+        // --- Utility Functions ---
 
-        /**
-         * Converts a time string (e.g., "6:00.00", "1:14:32.47", or just "5") to total seconds.
-         * If the input is a single number (no colon), it is assumed to be total minutes.
-         * @param {string} timeStr - Time string in H:MM:SS.SS, MM:SS.SS, or M format.
-         * @returns {number} Total seconds.
-         */
         const timeToSeconds = (timeStr) => {
             const cleanedStr = timeStr.trim();
             if (!cleanedStr) return 0;
@@ -170,11 +155,6 @@
             return totalSeconds;
         };
 
-        /**
-         * Converts total seconds back to a display string in M:SS.SS or H:MM:SS.SS format.
-         * @param {number} totalSeconds - Total time in seconds.
-         * @returns {string} Formatted time string.
-         */
         const secondsToTimeString = (totalSeconds) => {
             if (isNaN(totalSeconds) || totalSeconds < 0) return '0:00.00';
 
@@ -192,15 +172,8 @@
             }
         };
 
-        /**
-         * Converts pace string (e.g., "5'24\"/km") to seconds per unit.
-         * @param {string} paceStr - Pace string in M'SS"/unit format.
-         * @returns {number | null} Pace in seconds per unit or null on error.
-         */
         const paceToSeconds = (paceStr) => {
             if (!paceStr || paceStr.includes('--')) return null;
-
-            // Use regex to extract minutes and seconds
             const match = paceStr.match(/(\d+)'(\d+)"/);
             if (match) {
                 const minutes = parseInt(match[1], 10);
@@ -210,14 +183,6 @@
             return null;
         };
 
-
-        /**
-         * Calculates pace (time per km or time per 100m) and returns a string in M'SS"/unit format.
-         * @param {number} timeSeconds - Time for the lap in seconds.
-         * @param {number} distanceKm - Distance for the lap in kilometers.
-         * @param {boolean} isSwimMode - If true, calculates pace per 100m.
-         * @returns {string} Formatted pace string (e.g., "5'24"/km" or "1'30"/100m").
-         */
         const calculatePace = (timeSeconds, distanceKm, isSwimMode) => {
             if (distanceKm <= 0 || timeSeconds <= 0) return `--/${isSwimMode ? '100m' : 'km'}`;
             
@@ -225,14 +190,11 @@
             let unit;
 
             if (isSwimMode) {
-                // Pace per 100 meters: Convert distance from km to 100m units (km * 10)
                 const distanceInHundredsOfMeters = distanceKm * 10;
                 if (distanceInHundredsOfMeters <= 0) return '--/100m';
-
                 paceSecondsPerUnit = timeSeconds / distanceInHundredsOfMeters;
                 unit = '/100m';
             } else {
-                // Pace per Kilometer
                 paceSecondsPerUnit = timeSeconds / distanceKm;
                 unit = '/km';
             }
@@ -243,7 +205,6 @@
             return `${minutes}'${String(seconds).padStart(2, '0')}"${unit}`;
         };
         
-        // UPDATED LAP TYPES
         const LAP_TYPES = [
             'Run', 'Rest', 'Warm Up', 'Cool Down', 
             'Freestyle', 'Breaststroke', 'Backstroke', 'Butterfly'
@@ -252,7 +213,7 @@
         const SWIM_TYPES = ['Freestyle', 'Breaststroke', 'Backstroke', 'Butterfly'];
 
 
-        // --- Data Persistence Utilities ---
+        // --- Data Persistence ---
         const STORAGE_KEY = 'runStatsLaps';
 
         const getInitialLaps = () => {
@@ -282,17 +243,13 @@
             const isRest = lap.type === 'Rest';
             const isSwim = activityType === 'SWIM';
             
-            // State for holding temporary edits
             const [editLap, setEditLap] = useState({ 
                 type: lap.type, 
-                // Use rawDistance if available, otherwise use formatted distance from computed lap
                 distance: lap.rawDistance !== undefined ? lap.rawDistance : parseFloat(lap.distance).toFixed(2),
                 time: lap.rawTime || lap.time 
             });
 
-            // Effects to update edit state when lap props change (e.g., after initial load or image analysis)
             useEffect(() => {
-                // Ensure editLap reflects the current lap's source data when the lap prop changes
                 setEditLap({ 
                     type: lap.type, 
                     distance: lap.rawDistance !== undefined ? lap.rawDistance : parseFloat(lap.distance).toFixed(2), 
@@ -300,8 +257,6 @@
                 });
             }, [lap.type, lap.rawDistance, lap.rawTime, lap.distance, lap.time]);
 
-            
-            // --- Handlers for Editing ---
             const handleEditChange = (e) => {
                 const { name, value } = e.target;
                 setEditLap(prev => ({ ...prev, [name]: value }));
@@ -311,11 +266,11 @@
                 const dist = parseFloat(editLap.distance);
                 const timeSec = timeToSeconds(editLap.time);
 
-                if (dist > 0 && timeSec > 0 && dist < 1000) { // Basic sanity check: distance < 1000km
+                if (dist > 0 && timeSec > 0 && dist < 1000) {
                     onSave(index, { 
                         type: editLap.type, 
-                        distance: editLap.distance, // Keep as string for raw data fidelity
-                        time: editLap.time // Store raw time input
+                        distance: editLap.distance, 
+                        time: editLap.time 
                     });
                 } else {
                     alert("Validation failed: Distance must be > 0 (and less than 1000 km) and Time must be valid (e.g., '5' or '5:30.00').");
@@ -323,7 +278,6 @@
             };
 
             const handleCancel = () => {
-                // Revert to original computed values and exit editing
                 setEditLap({ 
                     type: lap.type, 
                     distance: lap.rawDistance !== undefined ? lap.rawDistance : parseFloat(lap.distance).toFixed(2), 
@@ -332,15 +286,12 @@
                 onCancel();
             };
 
-
-            // --- Styling ---
             let rowClass;
             let paceColor = isDarkMode ? 'text-white' : 'text-gray-900';
             let textColor = isDarkMode ? 'text-white' : 'text-gray-900';
             let subtleColor = isDarkMode ? 'text-gray-400' : 'text-gray-500';
 
             if (isTotal) {
-                // Apply custom dark color
                 rowClass = isDarkMode ? 'bg-dark-bg font-bold total-row-bg' : 'bg-gray-200 font-bold total-row-bg'; 
             } else if (isRest) {
                 rowClass = isDarkMode ? 'text-gray-400' : 'text-gray-600';
@@ -349,19 +300,16 @@
                 rowClass = textColor;
             }
             
-            // Distance display logic (km or meters)
             const displayDistance = (dist) => {
                 if (!dist && dist !== 0) return '0.00';
                 const distNum = parseFloat(dist);
                 if (isSwim) {
-                    // Convert KM to Meters for display (km * 1000)
                     return `${(distNum * 1000).toFixed(0)} m`;
                 }
                 return `${distNum.toFixed(2)} km`;
             }
 
             if (isTotal) {
-                 // Total row display (no editing)
                  return (
                     <div className={`grid grid-cols-12 py-3 px-2 ${rowClass}`} id="total-lap-row">
                         <div className={`col-span-3 text-sm flex items-center ${textColor}`}>{lap.type}</div>
@@ -372,7 +320,6 @@
                 );
             }
 
-            // --- Render Edit Mode vs. View Mode ---
             return (
                 <div className={`grid grid-cols-12 py-3 px-2 ${rowClass}`}>
                     
@@ -412,7 +359,7 @@
                         )}
                     </div>
                     
-                    {/* Distance (km or meters input in km) */}
+                    {/* Distance */}
                     <div className={`col-span-3 text-sm text-right ${textColor}`}>
                         {isEditing ? (
                             <input
@@ -423,7 +370,7 @@
                                 step="0.01"
                                 min="0"
                                 className={`edit-input text-right ${inputClass}`}
-                                placeholder={`Distance (km)`} // Input remains KM to maintain data consistency
+                                placeholder={`Distance (km)`}
                             />
                         ) : (
                             displayDistance(lap.distance)
@@ -446,7 +393,7 @@
                         )}
                     </div>
 
-                    {/* Pace (Always Displayed) */}
+                    {/* Pace */}
                     <div className={`col-span-3 text-sm text-right ${paceColor}`}>
                         {lap.pace || (isRest ? `--/${isSwim ? '100m' : 'km'}` : '--')}
                     </div>
@@ -454,15 +401,11 @@
             );
         };
 
-        // --- Component: Filter Button ---
-
         const FilterButton = ({ type, currentFilter, setFilter, label, isDarkMode }) => {
             const isActive = currentFilter === type;
-
             const activeClass = 'bg-indigo-600 text-white shadow-md';
-            const inactiveDark = 'bg-dark-card text-gray-300 hover:bg-gray-700'; // Using dark-card
+            const inactiveDark = 'bg-dark-card text-gray-300 hover:bg-gray-700'; 
             const inactiveLight = 'bg-gray-200 text-gray-700 hover:bg-gray-300';
-            
             const inactiveClass = isDarkMode ? inactiveDark : inactiveLight;
 
             return (
@@ -477,15 +420,13 @@
             );
         };
 
-        // --- Component: Chart Type Button ---
         const ChartTypeButton = ({ type, currentType, setType, label, isDarkMode }) => {
             const isActive = currentType === type;
             const activeClass = 'bg-indigo-600 text-white shadow-md';
             const inactiveDark = 'bg-gray-700 text-gray-300 hover:bg-gray-600';
             const inactiveLight = 'bg-gray-200 text-gray-700 hover:bg-gray-300';
-            
             const inactiveClass = isDarkMode ? inactiveDark : inactiveLight;
-            const IconComponent = type === 'line' ? BarChartIcon : ListOrderedIcon; // Using ListOrdered as placeholder for bar
+            const IconComponent = type === 'line' ? BarChartIcon : ListOrderedIcon;
 
             return (
                 <button
@@ -525,7 +466,6 @@
                         labels.push(`Lap ${index + 1}`);
                         paceData.push(paceInSeconds);
                         
-                        // Determine color (e.g., blue for activity, gray for rest)
                         const color = lap.type === 'Rest' ? '#6B7280' : (isDarkMode ? '#5E97F6' : '#3B82F6'); 
                         paceColors.push(color);
                         borderColors.push(isDarkMode ? '#5E97F6' : '#3B82F6');
@@ -536,17 +476,12 @@
             }, [filteredLaps, isDarkMode, activityType]);
 
             useEffect(() => {
-                // Chart.js requires a context to draw.
                 if (!canvasRef.current || data.paceData.length === 0) return;
-
-                // Destroy previous chart instance if it exists
                 if (chartRef.current) {
                     chartRef.current.destroy();
                 }
                 
                 const ctx = canvasRef.current.getContext('2d');
-                
-                // Define common chart elements based on theme
                 const gridColor = isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
                 const tickColor = isDarkMode ? '#A0AEC0' : '#4A5568';
                 const labelColor = isDarkMode ? '#FFFFFF' : '#1A202C';
@@ -556,21 +491,16 @@
                     data: data.paceData,
                     borderColor: data.borderColors,
                     borderWidth: 2,
-                    
-                    // Specific settings for Line vs Bar
                     backgroundColor: isHorizontalBar 
-                        ? data.paceColors // Use solid color for bar fill
-                        : (isDarkMode ? 'rgba(94, 151, 246, 0.4)' : 'rgba(59, 130, 246, 0.4)'), // Area fill for line chart
-                    
-                    fill: !isHorizontalBar, // Only fill for line chart
-                    tension: isHorizontalBar ? 0 : 0.3, // Smoother curve only for line
+                        ? data.paceColors 
+                        : (isDarkMode ? 'rgba(94, 151, 246, 0.4)' : 'rgba(59, 130, 246, 0.4)'),
+                    fill: !isHorizontalBar,
+                    tension: isHorizontalBar ? 0 : 0.3,
                     pointRadius: isHorizontalBar ? 0 : 4,
                     pointHoverRadius: isHorizontalBar ? 0 : 6,
                     pointBackgroundColor: data.paceColors,
                     pointBorderColor: '#fff',
                     pointBorderWidth: 2,
-
-                    // Bar specific properties
                     barPercentage: isHorizontalBar ? 0.9 : 0.8,
                     categoryPercentage: isHorizontalBar ? 0.9 : 0.8,
                 };
@@ -584,12 +514,9 @@
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
-                        indexAxis: indexAxis, // 'x' for Line, 'y' for Horizontal Bar
-
+                        indexAxis: indexAxis,
                         plugins: {
-                            legend: {
-                                display: false
-                            },
+                            legend: { display: false },
                             tooltip: {
                                 callbacks: {
                                     label: (context) => {
@@ -602,7 +529,7 @@
                             }
                         },
                         scales: {
-                            [indexAxis === 'x' ? 'y' : 'x']: { // The pace axis
+                            [indexAxis === 'x' ? 'y' : 'x']: {
                                 title: {
                                     display: true,
                                     text: unitLabel,
@@ -611,7 +538,6 @@
                                 },
                                 ticks: {
                                     color: tickColor,
-                                    // Format Y/X axis ticks to M:SS
                                     callback: function(value) {
                                         const minutes = Math.floor(value / 60);
                                         const seconds = Math.round(value % 60);
@@ -624,30 +550,23 @@
                                     borderColor: tickColor,
                                 },
                                 beginAtZero: false,
-                                reverse: false, 
                             },
-                            [indexAxis === 'x' ? 'x' : 'y']: { // The Lap label axis
-                                ticks: {
-                                    color: tickColor,
-                                },
-                                grid: {
-                                    display: false,
-                                },
+                            [indexAxis === 'x' ? 'x' : 'y']: {
+                                ticks: { color: tickColor },
+                                grid: { display: false },
                             }
                         }
                     }
                 };
 
-                // Create the new chart instance
                 chartRef.current = new Chart(ctx, chartConfig);
 
-                // Cleanup function to destroy the chart when the component unmounts or dependencies change
                 return () => {
                     if (chartRef.current) {
                         chartRef.current.destroy();
                     }
                 };
-            }, [data, isDarkMode, unitLabel, chartType]); // Rerun if chartType changes
+            }, [data, isDarkMode, unitLabel, chartType]);
 
             return (
                 <div className="w-full relative" style={{ height: isHorizontalBar ? 'auto' : '300px' }}>
@@ -667,45 +586,28 @@
         // --- Main Application Component ---
 
         const App = () => {
-            // UPDATED: Initialize laps state by attempting to load from localStorage
             const [laps, setLaps] = useState(getInitialLaps);
-            const [newLap, setNewLap] = useState({
-                type: 'Run',
-                distance: '',
-                time: '',
-            });
-            
+            const [newLap, setNewLap] = useState({ type: 'Run', distance: '', time: '' });
             const [uploadedImage, setUploadedImage] = useState(null);
             const [isLoading, setIsLoading] = useState(false);
             const [apiError, setApiError] = useState('');
             
-            // Hardcoded API Key: WARNING - EXPOSED CLIENT-SIDE
-            const API_KEY_PLACEHOLDER = "AIzaSyBqOJyZecfmrTox2riZdHpFSNFXB_VMono";
-            const [apiKey] = useState(API_KEY_PLACEHOLDER);
+            // API Key is automatically injected in this environment. 
+            const [apiKey] = useState(""); 
             
             const [filterType, setFilterType] = useState('All'); 
             const [isInputExpanded, setIsInputExpanded] = useState(false); 
             const [isUploadExpanded, setIsUploadExpanded] = useState(false);
-            const [isEditing, setIsEditing] = useState(false); // NEW: Edit Mode State
-            // NEW STATE for Visualization Collapse
+            const [isEditing, setIsEditing] = useState(false); 
             const [isVisualizationExpanded, setIsVisualizationExpanded] = useState(false);
-            // NEW STATE for Chart Type
             const [chartType, setChartType] = useState('line');
-
-            // NEW: Dark Mode State, defaulting to true
             const [isDarkMode, setIsDarkMode] = useState(true);
-            
-            // State to track if swim data is present, controlling UI units and filter visibility
             const [showSwimFilters, setShowSwimFilters] = useState(false);
-            // State to hold the detected activity type (RUN or SWIM)
             const [activityType, setActivityType] = useState('RUN');
-            // NEW: Set of existing lap types for dynamic filter visibility
             const [existingLapTypes, setExistingLapTypes] = useState(new Set());
 
+            // --- Effects ---
 
-            // --- Effects to Manage Global State ---
-
-            // EFFECT 1: Check for swim data and update units/filters/existing types
             useEffect(() => {
                 const types = new Set(laps.map(lap => lap.type));
                 setExistingLapTypes(types);
@@ -713,68 +615,52 @@
                 const hasSwimLaps = laps.some(lap => SWIM_TYPES.includes(lap.type));
                 setShowSwimFilters(hasSwimLaps);
                 
-                // Set application-wide activity context based on unfiltered data
                 if (hasSwimLaps) {
                      setActivityType('SWIM');
                 } else {
                      setActivityType('RUN');
                 }
                 
-                // If the current filter type is no longer in the laps, reset to All
                 if (filterType !== 'All' && !types.has(filterType)) {
                     setFilterType('All');
                 }
 
             }, [laps, filterType]);
 
-            // EFFECT 2: Save laps state to localStorage whenever the laps array changes
             useEffect(() => {
                 saveLapsToStorage(laps);
             }, [laps]);
 
-
-            // PWA Service Worker Registration
             useEffect(() => {
                 if ('serviceWorker' in navigator) {
                     window.addEventListener('load', () => {
                         navigator.serviceWorker.register('./service-worker.js')
-                            .then(registration => {
-                                console.log('SW registered:', registration);
-                            })
-                            .catch(registrationError => {
-                                console.log('SW registration failed:', registrationError);
-                            });
+                            .catch(err => console.log('SW registration failed:', err));
                     });
                 }
             }, []);
 
-
-            // Theme classes updated to use custom hex colors
-            const modeClass = isDarkMode ? 'bg-dark-bg text-white' : 'bg-gray-100 text-gray-900 light-mode'; // Darker background
-            const cardClass = isDarkMode ? 'bg-dark-card shadow-2xl' : 'bg-white shadow-lg border border-gray-200'; // Lighter card
-            const sectionHeaderClass = isDarkMode ? 'bg-dark-card border-dark-bg' : 'bg-gray-100 border-gray-300'; // Card surface
-            const sectionContentClass = isDarkMode ? 'bg-dark-card border-dark-bg' : 'bg-white border-gray-300'; // Card surface
+            // --- Theme classes ---
+            const modeClass = isDarkMode ? 'bg-dark-bg text-white' : 'bg-gray-100 text-gray-900 light-mode';
+            const cardClass = isDarkMode ? 'bg-dark-card shadow-2xl' : 'bg-white shadow-lg border border-gray-200';
+            const sectionHeaderClass = isDarkMode ? 'bg-dark-card border-dark-bg' : 'bg-gray-100 border-gray-300';
+            const sectionContentClass = isDarkMode ? 'bg-dark-card border-dark-bg' : 'bg-white border-gray-300';
             const tableHeaderClass = isDarkMode ? 'text-gray-400' : 'text-gray-600'; 
             const subtleTextColor = isDarkMode ? 'text-gray-500' : 'text-gray-500';
             const primaryTextColor = isDarkMode ? 'text-white' : 'text-gray-900';
             const inputClass = isDarkMode 
-                ? 'bg-dark-bg border border-gray-600 text-white focus:ring-blue-500 focus:border-blue-500' // Darker input field
+                ? 'bg-dark-bg border border-gray-600 text-white focus:ring-blue-500 focus:border-blue-500' 
                 : 'bg-white border border-gray-300 text-gray-900 focus:ring-blue-500 focus:border-blue-500';
             const errorClass = isDarkMode ? 'bg-red-900 border-red-700 text-red-300' : 'bg-red-100 border-red-400 text-red-800';
 
-
-            // --- Computed Run Data (Unfiltered Laps with calculations) ---
+            // --- Computed Data ---
             const computedLaps = useMemo(() => {
                 const isSwimMode = activityType === 'SWIM';
-
                 return laps.map(lap => {
-                    // Raw data is the input from forms/API before processing
                     const rawDistance = lap.distance; 
                     const rawTime = lap.time; 
-                    
                     const dist = parseFloat(rawDistance) || 0; 
                     const timeSec = timeToSeconds(rawTime);
-                    // Use the application's current activity mode for pace calculation
                     const pace = calculatePace(timeSec, dist, isSwimMode);
                     const formattedTime = secondsToTimeString(timeSec);
                     
@@ -782,30 +668,22 @@
                         ...lap, 
                         timeSec, 
                         pace,
-                        time: formattedTime, // formatted for display
-                        distance: dist, // numerical distance (ALWAYS stored in KM)
-                        rawDistance, // raw input for editing
-                        rawTime // raw input for editing
+                        time: formattedTime,
+                        distance: dist,
+                        rawDistance, 
+                        rawTime
                     };
                 });
-            }, [laps, activityType]); // Re-run if activityType changes
-
-
-            // Filtered Laps based on user selection
-            const allFilterableTypes = LAP_TYPES; // Use the global constant for filtering
+            }, [laps, activityType]);
 
             const filteredLaps = useMemo(() => {
-                if (filterType === 'All') {
-                    return computedLaps;
-                } 
-                if (allFilterableTypes.includes(filterType)) {
+                if (filterType === 'All') return computedLaps;
+                if (LAP_TYPES.includes(filterType)) {
                      return computedLaps.filter(lap => lap.type === filterType);
                 }
                 return computedLaps;
             }, [computedLaps, filterType]);
 
-
-            // Totals for the currently filtered view
             const filteredSummary = useMemo(() => {
                 const isSwimMode = activityType === 'SWIM';
                 let totalTimeSeconds = 0;
@@ -817,7 +695,6 @@
                 });
 
                 const totalTimeStr = secondsToTimeString(totalTimeSeconds);
-                // Use the application's current activity mode for pace calculation
                 const avgPace = calculatePace(totalTimeSeconds, totalDistance, isSwimMode);
 
                 return {
@@ -828,30 +705,22 @@
                 };
             }, [filteredLaps, activityType]);
 
+            // --- Handlers ---
 
-            // --- Lap Editing Handlers ---
             const handleSaveLap = (index, updatedLap) => {
-                // Find the original lap object in the currently filtered view
                 const filteredLapToUpdate = filteredLaps[index];
-
-                // Find the index of this exact lap object in the UNFILTERED list (computedLaps)
                 const originalIndex = computedLaps.findIndex(lap => 
                     lap.rawDistance === filteredLapToUpdate.rawDistance && 
                     lap.rawTime === filteredLapToUpdate.rawTime
                 );
 
-                if (originalIndex === -1) {
-                     console.error("Could could not find lap to update in original array.");
-                     return;
-                }
+                if (originalIndex === -1) return;
                 
-                // Update the main 'laps' array (raw data array) which drives computedLaps
                 const newLaps = [...laps];
-                // The updatedLap contains: { type: string, distance: string (raw), time: string (raw)}
                 newLaps[originalIndex] = {
                     type: updatedLap.type,
-                    distance: updatedLap.distance, // Raw string distance
-                    time: updatedLap.time // Raw time string
+                    distance: updatedLap.distance,
+                    time: updatedLap.time
                 };
                 setLaps(newLaps);
                 setIsEditing(false);
@@ -861,7 +730,6 @@
                 setIsEditing(false);
             };
 
-            // --- Manual Form Handlers ---
             const handleInputChange = (e) => {
                 const { name, value } = e.target;
                 setNewLap(prev => ({ ...prev, [name]: value }));
@@ -875,27 +743,24 @@
                 if (parseFloat(dist) > 0 && timeToSeconds(time) > 0) {
                     setLaps(prev => [...prev, {
                         type: newLap.type,
-                        distance: dist, // Store raw input (string)
-                        time: time, // Store raw input (string)
+                        distance: dist, 
+                        time: time,
                     }]);
                     setNewLap({ type: 'Run', distance: '', time: '' });
                 } else {
-                    setApiError("Invalid input: Distance must be > 0 and Time must be provided (e.g., '5' or '5:30.00').");
+                    setApiError("Invalid input: Distance must be > 0 and Time must be provided.");
                     setTimeout(() => setApiError(''), 3000);
                 }
             };
 
             const handleClearLaps = () => {
-                // UPDATE: Clear localStorage as well
                 localStorage.removeItem(STORAGE_KEY);
                 setLaps([]);
-                // Reset activity type when clearing all laps
                 setActivityType('RUN');
                 setShowSwimFilters(false);
                 setFilterType('All');
             };
             
-            // --- Image Processing Handlers ---
             const handleImageChange = (event) => {
                 const file = event.target.files[0];
                 if (file) {
@@ -907,15 +772,11 @@
             const processImageWithGemini = async () => {
                 if (!uploadedImage) {
                     setApiError("Please upload an image first.");
-                    setTimeout(() => setApiError(''), 3000);
                     return;
                 }
-                if (!apiKey) {
-                    setApiError("API Key is missing in the code. Image analysis will fail.");
-                    setTimeout(() => setApiError(''), 3000);
-                    return;
-                }
-
+                // Use apiKey from state, but in this env it might be empty, expecting internal injection or user manual entry if local
+                const effectiveKey = apiKey || "AIzaSyBqOJyZecfmrTox2riZdHpFSNFXB_VMono"; 
+                
                 setIsLoading(true);
                 setApiError('');
                 
@@ -935,12 +796,7 @@
                                 role: "user",
                                 parts: [
                                     { text: userQuery },
-                                    {
-                                        inlineData: {
-                                            mimeType: mimeType,
-                                            data: base64Data 
-                                        }
-                                    }
+                                    { inlineData: { mimeType: mimeType, data: base64Data } }
                                 ]
                             }
                         ],
@@ -952,9 +808,9 @@
                                 items: {
                                     type: "OBJECT",
                                     properties: {
-                                        "type": { "type": "STRING", "description": "The type of activity (e.g., Run, Rest, Warm Up, Cool Down, Freestyle, etc.)." },
-                                        "distance": { "type": "NUMBER", "description": "The distance covered in kilometers (e.g., 2.16)." },
-                                        "time": { "type": "STRING", "description": "The time duration in M:SS.SS or H:MM:SS.SS format (e.g., 6:00.00)." }
+                                        "type": { "type": "STRING" },
+                                        "distance": { "type": "NUMBER" },
+                                        "time": { "type": "STRING" }
                                     },
                                     required: ["type", "distance", "time"]
                                 }
@@ -962,8 +818,9 @@
                         }
                     };
                     
-                    apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${effectiveKey}`;
-
+                    // Updated Model Version
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${effectiveKey}`; 
+                    
                     try {
                         let response;
                         const maxRetries = 3;
@@ -976,12 +833,8 @@
                                 body: JSON.stringify(payload)
                             });
 
-                            if (response.ok) {
-                                break;
-                            }
+                            if (response.ok) break;
                             if (i < maxRetries - 1) {
-                                // Exponential backoff to handle throttling
-                                console.warn(`API call failed (status: ${response.status}). Retrying in ${delay}ms...`);
                                 await new Promise(resolve => setTimeout(resolve, delay));
                                 delay *= 2; 
                             } else {
@@ -995,19 +848,17 @@
                         if (jsonText) {
                             const extractedLaps = JSON.parse(jsonText);
                             if (Array.isArray(extractedLaps)) {
-                                // Check if any extracted lap is a swim type
                                 const containsSwim = extractedLaps.some(lap => SWIM_TYPES.includes(lap.type));
                                 if (containsSwim) {
                                     setActivityType('SWIM');
                                     setShowSwimFilters(true);
                                 }
                                 
-                                // Add new laps to existing list
                                 setLaps(prev => [
                                     ...prev, 
                                     ...extractedLaps.map(lap => ({
                                         type: lap.type || 'Run',
-                                        distance: lap.distance ? lap.distance.toString() : '0', // Ensure raw string distance is stored
+                                        distance: lap.distance ? lap.distance.toString() : '0',
                                         time: lap.time || '0:00.00'
                                     }))
                                 ]);
@@ -1020,7 +871,7 @@
 
                     } catch (error) {
                         console.error("API Error:", error);
-                        alert(`Data extraction failed. Error: ${error.message}. Verify your image quality and API Key.`);
+                        setApiError(`Data extraction failed: ${error.message}.`);
                     } finally {
                         setIsLoading(false);
                     }
@@ -1031,66 +882,41 @@
                 };
             };
             
-            // --- Share Image Handler (Updated for Web Share API) ---
             const handleShareImage = () => {
                 const input = document.getElementById('share-target-content');
-                const totalRowElement = document.getElementById('total-lap-row'); // The specific total lap row
+                const totalRowElement = document.getElementById('total-lap-row');
                 const rootCard = document.getElementById('stats-card');
                 
-                if (!input || !rootCard || !totalRowElement) {
-                    console.error("Internal Error: Could not find capture area elements.");
-                    return;
-                }
+                if (!input || !rootCard || !totalRowElement) return;
 
-                // 1. Temporarily save and change styles for screenshot
                 const originalRootClass = rootCard.className;
                 const originalBodyBg = document.body.style.backgroundColor;
                 const originalBodyClass = document.body.className;
                 const originalTotalRowClass = totalRowElement.className;
 
-                // Remove background/shadow from body and card for transparency
+                // Temporarily style for transparency
                 document.body.style.backgroundColor = 'transparent';
                 document.body.className = '';
-
-                // Temporarily remove card background and shadow
-                const isCurrentlyDark = rootCard.classList.contains('bg-dark-card'); // Check for new dark class
+                
+                const isCurrentlyDark = rootCard.classList.contains('bg-dark-card');
                 const isCurrentlyLight = rootCard.classList.contains('bg-white');
+                
                 if (isCurrentlyDark) rootCard.classList.remove('bg-dark-card', 'shadow-2xl');
                 if (isCurrentlyLight) rootCard.classList.remove('bg-white', 'shadow-lg', 'border');
                 
-                // Add temporary class to ensure borders/text remain visible if root is transparent
                 rootCard.classList.add('bg-transparent', 'shadow-none'); 
-
-                // Remove the colored background from the specific Total row element
-                totalRowElement.classList.remove('bg-dark-bg', 'bg-gray-200'); // Check for new dark class
+                totalRowElement.classList.remove('bg-dark-bg', 'bg-gray-200');
                 totalRowElement.classList.add('bg-transparent'); 
 
-                // 2. Use html2canvas to capture the element
                 html2canvas(input, {
-                    scale: 3, // Higher scale for better resolution
+                    scale: 3,
                     useCORS: true,
-                    backgroundColor: null, // Critical for transparent PNG output
+                    backgroundColor: null,
                     allowTaint: true
                 }).then(canvas => {
-                    // 3. Convert canvas to Blob for sharing/download
                     canvas.toBlob(async (blob) => {
-                        // 4. Restore original styles immediately (critical to do this inside or right after the html2canvas promise)
-
-                        // Restore total row styles
-                        totalRowElement.className = originalTotalRowClass;
-
-                        // Restore root card styles
-                        rootCard.classList.remove('bg-transparent', 'shadow-none', 'border-none');
-                        if (isCurrentlyDark) rootCard.classList.add('bg-dark-card', 'shadow-2xl');
-                        if (isCurrentlyLight) rootCard.classList.add('bg-white', 'shadow-lg', 'border');
-                        rootCard.className = originalRootClass; // Safest way is to restore original captured class list
-                        
-                        document.body.style.backgroundColor = originalBodyBg;
-                        document.body.className = originalBodyClass;
-
-                        // --- Share Logic: Attempt Download first, then Native Share ---
-
-                        const handleDownloadFallback = (canvas) => {
+                        // Fallback download
+                        try {
                             const image = canvas.toDataURL('image/png');
                             const link = document.createElement('a');
                             link.href = image;
@@ -1098,22 +924,13 @@
                             document.body.appendChild(link);
                             link.click();
                             document.body.removeChild(link);
-                        }
-                        
-                        // A. Attempt Download (Reliable for Desktop, but can fail on strict mobile browsers)
-                        try {
-                            handleDownloadFallback(canvas);
-                            console.log("Download initiated successfully.");
-                            return; // Stop here if download worked
                         } catch (e) {
-                            console.error("Direct download failed. Attempting native share as fallback. Error:", e);
+                            console.error("Download failed", e);
                         }
 
-
-                        // B. Attempt Native Web Share API (Best for "Save to Photos" on mobile when download fails)
+                        // Native Share
                         if (navigator.share && blob) {
                             const file = new File([blob], `running-stats-${new Date().toISOString().slice(0, 10)}.png`, { type: 'image/png' });
-                            
                             try {
                                 await navigator.share({
                                     title: 'Running Stats',
@@ -1121,19 +938,14 @@
                                     files: [file],
                                 });
                             } catch (error) {
-                                console.error('Native share failed or was dismissed. Error:', error);
+                                // Share dismissed
                             }
-                        } else {
-                            console.log("Native Web Share API not supported or context is invalid for sharing.");
                         }
-
-
                     }, 'image/png');
                 }).catch(err => {
-                    console.error("Image capture failed:", err);
-                    alert("Failed to generate image. Try another browser.");
-                    
-                    // Always restore styles even on error
+                    alert("Failed to generate image.");
+                }).finally(() => {
+                    // ALWAYS restore styles
                     totalRowElement.className = originalTotalRowClass;
                     rootCard.className = originalRootClass;
                     document.body.style.backgroundColor = originalBodyBg;
@@ -1141,17 +953,14 @@
                 });
             };
 
-            // --- UI Render ---
             return (
                 <div className={`min-h-screen font-sans p-4 ${modeClass}`}>
 
-                    {/* Theme Toggle Button */}
                     <div className="max-w-md mx-auto flex justify-end mb-4">
                          <button 
                             onClick={() => setIsDarkMode(!isDarkMode)}
                             className={`p-2 rounded-full transition duration-200 focus:outline-none 
                                 ${isDarkMode ? 'bg-dark-card text-yellow-400 hover:bg-gray-700' : 'bg-gray-200 text-yellow-600 hover:bg-gray-300'}`}
-                            title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
                         >
                             {isDarkMode ? <SunIcon className="w-5 h-5 mr-0"/> : <MoonIcon className="w-5 h-5 mr-0"/>}
                         </button>
@@ -1159,12 +968,11 @@
 
                     <div id="stats-card" className={`max-w-md mx-auto rounded-xl overflow-hidden ${cardClass}`}>
                         
-                        {/* Image Upload Section (Collapsible) */}
+                        {/* Image Upload Section */}
                         <div className={`p-4 border-b ${sectionHeaderClass}`}>
                             <button 
                                 onClick={() => setIsUploadExpanded(!isUploadExpanded)}
                                 className={`w-full flex justify-between items-center text-lg font-semibold focus:outline-none ${primaryTextColor}`}
-                                aria-expanded={isUploadExpanded}
                             >
                                 <span className="flex items-center">
                                     <ImageIcon className="w-4 h-4 mr-2 text-green-400" stroke={isDarkMode ? 'currentColor' : '#10B981'}/> Upload Stats Image
@@ -1172,28 +980,13 @@
                                 {isUploadExpanded ? <ChevronUpIcon className="w-5 h-5 text-green-400"/> : <ChevronDownIcon className="w-5 h-5 text-green-400"/>}
                             </button>
                             
-                            <div 
-                                className="collapsible"
-                                style={{ 
-                                    maxHeight: isUploadExpanded ? '600px' : '0', 
-                                    opacity: isUploadExpanded ? 1 : 0,
-                                    marginTop: isUploadExpanded ? '1rem' : '0'
-                                }}
-                            >
+                            <div className="collapsible" style={{ maxHeight: isUploadExpanded ? '600px' : '0', opacity: isUploadExpanded ? 1 : 0, marginTop: isUploadExpanded ? '1rem' : '0' }}>
                                 <div className="space-y-3 mt-4">
-                                    {/* File Uploader and Analyzer Button */}
                                     <div className="flex space-x-2 items-center">
-                                        <label className="flex-1 min-w-0"> {/* FIX: Added min-w-0 to allow shrinkage */}
-                                            <input
-                                                type="file"
-                                                accept="image/*"
-                                                onChange={handleImageChange}
-                                                className="block w-full text-sm text-gray-400"
-                                            />
+                                        <label className="flex-1 min-w-0">
+                                            <input type="file" accept="image/*" onChange={handleImageChange} className="block w-full text-sm text-gray-400" />
                                             {uploadedImage && (
-                                                <p className={`mt-2 text-xs ${subtleTextColor} truncate`}>
-                                                    File selected: {uploadedImage.name}
-                                                </p>
+                                                <p className={`mt-2 text-xs ${subtleTextColor} truncate`}>File: {uploadedImage.name}</p>
                                             )}
                                         </label>
                                         
@@ -1202,10 +995,7 @@
                                             onClick={processImageWithGemini}
                                             disabled={isLoading || !uploadedImage} 
                                             className={`w-28 py-2 rounded-lg shadow-lg flex items-center justify-center font-medium transition duration-150
-                                                ${isLoading || !uploadedImage
-                                                    ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                                                    : 'bg-green-600 hover:bg-green-700 text-white'
-                                                }`}
+                                                ${isLoading || !uploadedImage ? 'bg-gray-600 text-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 text-white'}`}
                                         >
                                             <Loader2Icon className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`}/> Analyze
                                         </button>
@@ -1214,173 +1004,90 @@
                             </div>
                         </div>
 
-                        {/* API Error Message */}
                         {apiError && (
                             <div className={`p-3 mx-4 my-2 rounded-lg text-sm font-medium ${errorClass}`}>
                                 {apiError}
                             </div>
                         )}
                         
-                        {/* Manual Lap Input Form (with Collapse/Expand) */}
+                        {/* Manual Lap Input */}
                         <div className={`p-4 border-t ${sectionContentClass}`}>
                             <button 
                                 onClick={() => setIsInputExpanded(!isInputExpanded)}
                                 className={`w-full flex justify-between items-center text-lg font-semibold focus:outline-none ${primaryTextColor}`}
-                                aria-expanded={isInputExpanded}
                             >
                                 <span className="flex items-center">
-                                    <BarChartIcon className="w-4 h-4 mr-2 text-blue-400" stroke={isDarkMode ? 'currentColor' : '#3B82F6'}/> Add New {activityType === 'SWIM' ? 'Swimming' : 'Running'} Lap Manually
+                                    <BarChartIcon className="w-4 h-4 mr-2 text-blue-400" stroke={isDarkMode ? 'currentColor' : '#3B82F6'}/> Add Lap Manually
                                 </span>
                                 {isInputExpanded ? <ChevronUpIcon className="w-5 h-5 text-blue-400"/> : <ChevronDownIcon className="w-5 h-5 text-blue-400"/>}
                             </button>
 
-                            <div 
-                                className="collapsible"
-                                style={{ 
-                                    maxHeight: isInputExpanded ? '500px' : '0', 
-                                    opacity: isInputExpanded ? 1 : 0,
-                                    marginTop: isInputExpanded ? '1rem' : '0'
-                                }}
-                            >
+                            <div className="collapsible" style={{ maxHeight: isInputExpanded ? '500px' : '0', opacity: isInputExpanded ? 1 : 0, marginTop: isInputExpanded ? '1rem' : '0' }}>
                                 <form onSubmit={handleAddLap} className="space-y-3">
                                     <div className="flex space-x-2">
-                                        <select
-                                            name="type"
-                                            value={newLap.type}
-                                            onChange={handleInputChange}
-                                            className={`w-1/3 p-2 rounded-lg text-sm ${inputClass}`}
-                                        >
+                                        <select name="type" value={newLap.type} onChange={handleInputChange} className={`w-1/3 p-2 rounded-lg text-sm ${inputClass}`}>
                                             {LAP_TYPES.map(type => <option key={type} value={type}>{type}</option>)}
                                         </select>
-                                        <input
-                                            type="text"
-                                            name="distance"
-                                            value={newLap.distance}
-                                            onChange={handleInputChange}
-                                            placeholder={`Distance (${activityType === 'SWIM' ? 'km' : 'km'})`}
-                                            step="0.01"
-                                            className={`w-1/3 p-2 rounded-lg text-sm ${inputClass}`}
-                                        />
-                                        <input
-                                            type="text"
-                                            name="time"
-                                            value={newLap.time}
-                                            onChange={handleInputChange}
-                                            placeholder="Time (M or M:SS.SS)"
-                                            className={`w-1/3 p-2 rounded-lg text-sm ${inputClass}`}
-                                        />
+                                        <input type="text" name="distance" value={newLap.distance} onChange={handleInputChange} placeholder={`Dist (${activityType === 'SWIM' ? 'km' : 'km'})`} className={`w-1/3 p-2 rounded-lg text-sm ${inputClass}`}/>
+                                        <input type="text" name="time" value={newLap.time} onChange={handleInputChange} placeholder="Time" className={`w-1/3 p-2 rounded-lg text-sm ${inputClass}`}/>
                                     </div>
                                     <div className="flex space-x-2">
-                                         <button
-                                            type="submit"
-                                            className="w-full bg-blue-600 hover:bg-blue-700 transition duration-150 text-white font-medium py-2 rounded-lg shadow-lg flex items-center justify-center"
-                                        >
+                                         <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 transition duration-150 text-white font-medium py-2 rounded-lg shadow-lg flex items-center justify-center">
                                             <PlayIcon className="w-4 h-4 mr-2"/> Add Lap
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={handleClearLaps}
-                                            className="w-1/3 bg-red-600 hover:bg-red-700 transition duration-150 text-white font-medium py-2 rounded-lg shadow-lg flex items-center justify-center"
-                                        >
-                                            <RefreshCwIcon className="w-3 h-3"/> Clear All
                                         </button>
                                     </div>
                                 </form>
                             </div>
                         </div>
 
-                        {/* NEW: Visualization Section (Collapsible) */}
+                        {/* Visualization */}
                         <div className={`p-4 border-t ${sectionContentClass}`}>
                             <button 
                                 onClick={() => setIsVisualizationExpanded(!isVisualizationExpanded)}
                                 className={`w-full flex justify-between items-center text-lg font-semibold focus:outline-none ${primaryTextColor}`}
-                                aria-expanded={isVisualizationExpanded}
                             >
                                 <span className="flex items-center">
-                                    <BarChartIcon className="w-4 h-4 mr-2 text-yellow-400" stroke={isDarkMode ? 'currentColor' : '#FBBF24'}/> Visualization & Comparison
+                                    <BarChartIcon className="w-4 h-4 mr-2 text-yellow-400" stroke={isDarkMode ? 'currentColor' : '#FBBF24'}/> Visualization
                                 </span>
                                 {isVisualizationExpanded ? <ChevronUpIcon className="w-5 h-5 text-yellow-400"/> : <ChevronDownIcon className="w-5 h-5 text-yellow-400"/>}
                             </button>
                             
-                            <div 
-                                className="collapsible"
-                                style={{ 
-                                    maxHeight: isVisualizationExpanded ? '800px' : '0', 
-                                    opacity: isVisualizationExpanded ? 1 : 0,
-                                    marginTop: isVisualizationExpanded ? '1rem' : '0'
-                                }}
-                            >
-                                {/* Chart Type Selector Buttons */}
+                            <div className="collapsible" style={{ maxHeight: isVisualizationExpanded ? '800px' : '0', opacity: isVisualizationExpanded ? 1 : 0, marginTop: isVisualizationExpanded ? '1rem' : '0' }}>
                                 <div className="flex space-x-2 mb-4">
-                                    <ChartTypeButton 
-                                        type="line" 
-                                        currentType={chartType} 
-                                        setType={setChartType} 
-                                        label="Pace Trend (Line)" 
-                                        isDarkMode={isDarkMode} 
-                                    />
-                                    <ChartTypeButton 
-                                        type="horizontalBar" 
-                                        currentType={chartType} 
-                                        setType={setChartType} 
-                                        label="Lap Comparison (Bar)" 
-                                        isDarkMode={isDarkMode} 
-                                    />
+                                    <ChartTypeButton type="line" currentType={chartType} setType={setChartType} label="Pace (Line)" isDarkMode={isDarkMode} />
+                                    <ChartTypeButton type="horizontalBar" currentType={chartType} setType={setChartType} label="Compare (Bar)" isDarkMode={isDarkMode} />
                                 </div>
-                                
                                 <PaceChart filteredLaps={filteredLaps} isDarkMode={isDarkMode} activityType={activityType} chartType={chartType} />
                             </div>
                         </div>
                         
-                        {/* LAP FILTERING SECTION */}
+                        {/* Filter & Actions */}
                         <div className={`p-4 border-t border-b ${sectionHeaderClass}`}>
                             <div className="flex justify-between items-center mb-3">
                                 <h2 className={`text-sm font-semibold flex items-center uppercase tracking-wider ${primaryTextColor}`}>
-                                    <FilterIcon className="w-4 h-4 mr-2 text-indigo-400" stroke={isDarkMode ? 'currentColor' : '#8B5CF6'}/> Filter Laps View
+                                    <FilterIcon className="w-4 h-4 mr-2 text-indigo-400" stroke={isDarkMode ? 'currentColor' : '#8B5CF6'}/> Filter Laps
                                 </h2>
                                 <div className="flex space-x-2">
-                                    <button
-                                            type="button"
-                                            onClick={handleClearLaps}
-                                            className="py-1 px-3 rounded-lg text-xs font-medium transition duration-150 flex items-center bg-gray-600 hover:bg-red-700 text-white shadow-md"
-                                        >
-                                            <RefreshCwIcon className="w-3 h-3"/> Clear All
-                                        </button>
-                                    {/* NEW: Refresh Button */}
-                                    <button
-                                        onClick={() => window.location.reload()}
-                                        className={`py-1 px-3 rounded-lg text-xs font-medium transition duration-150 flex items-center bg-gray-600 hover:bg-gray-700 text-white shadow-md`}
-                                        title="Reload Page"
-                                    >
+                                    <button onClick={handleClearLaps} className="py-1 px-3 rounded-lg text-xs font-medium transition duration-150 flex items-center bg-gray-600 hover:bg-red-700 text-white shadow-md">
+                                        <RefreshCwIcon className="w-3 h-3"/> Clear
+                                    </button>
+                                    <button onClick={() => window.location.reload()} className={`py-1 px-3 rounded-lg text-xs font-medium transition duration-150 flex items-center bg-gray-600 hover:bg-gray-700 text-white shadow-md`} title="Reload Page">
                                         <RefreshCwIcon className="w-3 h-3 mr-1"/> Refresh
                                     </button>
-                                    {/* Edit Button */}
-                                    <button
-                                        onClick={() => setIsEditing(prev => !prev)}
-                                        className={`py-1 px-3 rounded-lg text-xs font-medium transition duration-150 flex items-center 
-                                            ${isEditing 
-                                                ? 'bg-red-600 hover:bg-red-700 text-white shadow-md' 
-                                                : 'bg-indigo-600 hover:bg-indigo-700 text-white'
-                                            }`}
-                                    >
-                                        <EditIcon className="w-3 h-3 mr-1"/> {isEditing ? 'Exit Edit' : 'Edit'}
+                                    <button onClick={() => setIsEditing(prev => !prev)} className={`py-1 px-3 rounded-lg text-xs font-medium transition duration-150 flex items-center ${isEditing ? 'bg-red-600 hover:bg-red-700 text-white shadow-md' : 'bg-indigo-600 hover:bg-indigo-700 text-white'}`}>
+                                        <EditIcon className="w-3 h-3 mr-1"/> {isEditing ? 'Exit' : 'Edit'}
                                     </button>
                                 </div>
                             </div>
                             
-                            {/* Filter buttons re-arranged as requested: Warm Up, Run, Rest, Cool Down */}
                             <div className="flex space-x-1 text-xs justify-between">
-                                {/* Always show ALL button */}
                                 <FilterButton type="All" currentFilter={filterType} setFilter={setFilterType} label="All" isDarkMode={isDarkMode} />
-                                
-                                {/* Dynamically show Running-related filters if they exist in the data */}
                                 {existingLapTypes.has('Warm Up') && <FilterButton type="Warm Up" currentFilter={filterType} setFilter={setFilterType} label="Warm Up" isDarkMode={isDarkMode} />}
                                 {existingLapTypes.has('Run') && <FilterButton type="Run" currentFilter={filterType} setFilter={setFilterType} label="Run" isDarkMode={isDarkMode} />}
                                 {existingLapTypes.has('Rest') && <FilterButton type="Rest" currentFilter={filterType} setFilter={setFilterType} label="Rest" isDarkMode={isDarkMode} />}
                                 {existingLapTypes.has('Cool Down') && <FilterButton type="Cool Down" currentFilter={filterType} setFilter={setFilterType} label="Cool Down" isDarkMode={isDarkMode} />}
                             </div>
                             
-                            {/* NEW: Swimming filter buttons (Visible only if swim data is present and exists in laps) */}
                             {showSwimFilters && (
                                 <div className="flex space-x-1 text-xs justify-between mt-2">
                                     {SWIM_TYPES.map(type => existingLapTypes.has(type) && (
@@ -1390,34 +1097,17 @@
                             )}
                         </div>
                         
-                        
-
-                        {/* NEW CONTAINER: CAPTURE TARGET for PNG export */}
+                        {/* CAPTURE TARGET */}
                         <div id="share-target-content">
-
-                            {/* Lap Table Header */}
                             <div className="px-4 pt-4">
                                 <div className={`grid grid-cols-12 text-xs font-semibold py-2 uppercase ${tableHeaderClass}`}>
-                                    {/* Left-aligned Lap (Dynamically shows activity type) */}
-                                    <div className="col-span-3 flex items-center">
-                                         <ListOrderedIcon className="w-3 h-3 mr-1"/> {activityType === 'SWIM' ? 'SWIM' : 'LAP'}
-                                    </div>
-                                    {/* Right-aligned Distance (flex items-center for vertical alignment) */}
-                                    <div className="col-span-3 text-right flex items-center justify-end whitespace-nowrap">
-                                        <ActivityIcon className="w-3 h-3 mr-1"/> DISTANCE ({activityType === 'SWIM' ? 'M' : 'KM'})
-                                    </div>
-                                    {/* Right-aligned Time (flex items-center for vertical alignment) */}
-                                    <div className="col-span-3 text-right flex items-center justify-end whitespace-nowrap">
-                                        <ClockIcon className="w-3 h-3 mr-1"/> TIME
-                                    </div>
-                                    {/* Right-aligned Average Pace (flex items-center for vertical alignment) */}
-                                    <div className="col-span-3 text-right flex items-center justify-end whitespace-nowrap">
-                                        <StopwatchIcon className="w-3 h-3 mr-1"/> AVG PACE
-                                    </div>
+                                    <div className="col-span-3 flex items-center"><ListOrderedIcon className="w-3 h-3 mr-1"/> {activityType === 'SWIM' ? 'SWIM' : 'LAP'}</div>
+                                    <div className="col-span-3 text-right flex items-center justify-end whitespace-nowrap"><ActivityIcon className="w-3 h-3 mr-1"/> DIST ({activityType === 'SWIM' ? 'M' : 'KM'})</div>
+                                    <div className="col-span-3 text-right flex items-center justify-end whitespace-nowrap"><ClockIcon className="w-3 h-3 mr-1"/> TIME</div>
+                                    <div className="col-span-3 text-right flex items-center justify-end whitespace-nowrap"><StopwatchIcon className="w-3 h-3 mr-1"/> PACE</div>
                                 </div>
                             </div>
 
-                            {/* Lap Table Rows (Dynamic height) */}
                             <div className="px-4">
                                 {filteredLaps.map((lap, index) => (
                                     <LapRow 
@@ -1426,18 +1116,17 @@
                                         index={index} 
                                         isDarkMode={isDarkMode} 
                                         isEditing={isEditing}
-                                        onSave={(lapIndex, updatedData) => handleSaveLap(index, updatedData)} // Pass index from filteredLaps
+                                        onSave={(lapIndex, updatedData) => handleSaveLap(index, updatedData)}
                                         onCancel={handleCancelEdit}
                                         inputClass={inputClass}
                                         activityType={activityType}
                                     />
                                 ))}
                                 {filteredLaps.length === 0 && !isLoading && (
-                                    <p className={`text-center py-8 ${subtleTextColor}`}>No laps recorded yet or no laps match the current filter criteria.</p>
+                                    <p className={`text-center py-8 ${subtleTextColor}`}>No laps recorded yet.</p>
                                 )}
                             </div>
 
-                            {/* Totals Summary Row (Uses LapRow component for formatting, but background will be stripped) */}
                             <div id="total-row-container">
                                 <LapRow
                                     isTotal={true}
@@ -1452,35 +1141,25 @@
                                 />
                             </div>
                         </div>
-                        {/* END CAPTURE TARGET */}
                         
-                        {/* Centered Total Text - VISIBLE in UI, EXCLUDED from capture */}
                         <div className={`flex justify-center mt-4 text-xs ${subtleTextColor} space-x-4 px-4`}>
-                            <p>Total Distance: <span className={`${primaryTextColor} font-medium`}>
-                                {filteredSummary.totalDistance.toFixed(2)} {activityType === 'SWIM' ? 'km' : 'km'}
-                            </span></p>
+                            <p>Total Distance: <span className={`${primaryTextColor} font-medium`}>{filteredSummary.totalDistance.toFixed(2)} {activityType === 'SWIM' ? 'km' : 'km'}</span></p>
                             <p>Total Time: <span className={`${primaryTextColor} font-medium`}>{filteredSummary.totalTimeStr}</span></p>
                         </div>
                         
-                        {/* Share Button */}
                         <div className={`p-4 border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-300'} mt-4`}>
-                            <button
-                                onClick={handleShareImage}
-                                className="w-full bg-indigo-600 hover:bg-indigo-700 transition duration-150 text-white font-medium py-3 rounded-lg shadow-xl flex items-center justify-center"
-                                disabled={filteredLaps.length === 0}
-                            >
+                            <button onClick={handleShareImage} className="w-full bg-indigo-600 hover:bg-indigo-700 transition duration-150 text-white font-medium py-3 rounded-lg shadow-xl flex items-center justify-center" disabled={filteredLaps.length === 0}>
                                 <ShareIcon className="w-4 h-4 mr-2"/> Share Current Stats (PNG)
                             </button>
                         </div>
                     </div>
                     <div className={`text-center text-xs mt-4 ${subtleTextColor}`}>
-                        Pace is calculated as Time per {activityType === 'SWIM' ? '100 Meters' : 'Kilometer'} (M'SS"/{activityType === 'SWIM' ? '100m' : 'km'}).
+                        Pace is calculated as Time per {activityType === 'SWIM' ? '100 Meters' : 'Kilometer'}.
                     </div>
                 </div>
             );
         };
 
-        // Render the application
         ReactDOM.render(<App />, document.getElementById('root'));
     </script>
 </body>
