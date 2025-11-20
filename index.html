@@ -128,6 +128,8 @@
         const EditIcon = (props) => ( <Icon {...props} path={<path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>}/> );
         const SaveIcon = (props) => ( <Icon {...props} path={<><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 7 14 7"/></>}/> );
         const XIcon = (props) => ( <Icon {...props} path={<><path d="M18 6 6 18"/><path d="m6 6 12 12"/></>}/> );
+        const ServerIcon = (props) => ( <Icon {...props} path={<><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></>}/> );
+        const GithubIcon = (props) => ( <Icon {...props} path={<path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/>}/> );
 
 
         // --- Utility Functions ---
@@ -586,12 +588,18 @@
         // --- Main Application Component ---
 
         const App = () => {
+            const GEMINI_MODEL_ID = "gemini-2.5-flash-preview-09-2025";
+            
             const [laps, setLaps] = useState(getInitialLaps);
             const [newLap, setNewLap] = useState({ type: 'Run', distance: '', time: '' });
             const [uploadedImage, setUploadedImage] = useState(null);
             const [isLoading, setIsLoading] = useState(false);
             const [apiError, setApiError] = useState('');
             
+            // System Status State
+            const [apiStatus, setApiStatus] = useState('idle');
+            const [apiStatusMessage, setApiStatusMessage] = useState('');
+
             // API Key is automatically injected in this environment. 
             const [apiKey] = useState(""); 
             
@@ -643,7 +651,7 @@
             // --- Theme classes ---
             const modeClass = isDarkMode ? 'bg-dark-bg text-white' : 'bg-gray-100 text-gray-900 light-mode';
             const cardClass = isDarkMode ? 'bg-dark-card shadow-2xl' : 'bg-white shadow-lg border border-gray-200';
-            const sectionHeaderClass = isDarkMode ? 'bg-dark-card border-dark-bg' : 'bg-gray-100 border-gray-300';
+            const sectionHeaderClass = isDarkMode ? 'bg-dark-card border-dark-bg' : 'bg-gray-100 border-dark-bg';
             const sectionContentClass = isDarkMode ? 'bg-dark-card border-dark-bg' : 'bg-white border-gray-300';
             const tableHeaderClass = isDarkMode ? 'text-gray-400' : 'text-gray-600'; 
             const subtleTextColor = isDarkMode ? 'text-gray-500' : 'text-gray-500';
@@ -706,6 +714,35 @@
             }, [filteredLaps, activityType]);
 
             // --- Handlers ---
+            
+            const testApiConnection = async () => {
+                setApiStatus('testing');
+                setApiStatusMessage('');
+                const effectiveKey = apiKey || "";
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL_ID}:generateContent?key=${effectiveKey}`;
+                
+                try {
+                    // Sending a minimal token test prompt
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{ parts: [{ text: "Test" }] }]
+                        })
+                    });
+                    
+                    if (response.ok) {
+                        setApiStatus('success');
+                        setApiStatusMessage('Connected successfully to Google Gemini.');
+                    } else {
+                        const errData = await response.json();
+                        throw new Error(errData.error?.message || response.statusText);
+                    }
+                } catch (error) {
+                    setApiStatus('error');
+                    setApiStatusMessage(error.message);
+                }
+            };
 
             const handleSaveLap = (index, updatedLap) => {
                 const filteredLapToUpdate = filteredLaps[index];
@@ -775,7 +812,7 @@
                     return;
                 }
                 // Use apiKey from state, but in this env it might be empty, expecting internal injection or user manual entry if local
-                const effectiveKey = apiKey || "AIzaSyBqOJyZecfmrTox2riZdHpFSNFXB_VMono"; 
+                const effectiveKey = apiKey || ""; 
                 
                 setIsLoading(true);
                 setApiError('');
@@ -818,9 +855,9 @@
                         }
                     };
                     
-                    // Updated Model Version
-                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${effectiveKey}`; 
-                    
+                    // Updated Model Version (Using the constant now)
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL_ID}:generateContent?key=${effectiveKey}`; 
+
                     try {
                         let response;
                         const maxRetries = 3;
@@ -1156,6 +1193,67 @@
                     <div className={`text-center text-xs mt-4 ${subtleTextColor}`}>
                         Pace is calculated as Time per {activityType === 'SWIM' ? '100 Meters' : 'Kilometer'}.
                     </div>
+
+                    {/* System Status Section */}
+                    <div className={`max-w-md mx-auto mt-8 p-4 rounded-lg border ${isDarkMode ? 'border-gray-700 bg-dark-card' : 'border-gray-300 bg-white'}`}>
+                        <h3 className={`text-sm font-bold mb-3 ${primaryTextColor} flex items-center`}>
+                            <ServerIcon className="w-4 h-4 mr-2"/> System Status
+                        </h3>
+                        
+                        <div className="space-y-3 text-xs">
+                            <div className="flex justify-between items-center border-b border-gray-700 pb-2">
+                                <span className={subtleTextColor}>Current Model:</span>
+                                <span className={`font-mono px-2 py-0.5 rounded ${isDarkMode ? 'bg-gray-800 text-green-400' : 'bg-gray-100 text-green-600'}`}>
+                                    {GEMINI_MODEL_ID}
+                                </span>
+                            </div>
+                            
+                            <div className="pt-1">
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className={subtleTextColor}>API Connectivity:</span>
+                                    <span className={`font-bold flex items-center ${
+                                        apiStatus === 'success' ? 'text-green-500' : 
+                                        apiStatus === 'error' ? 'text-red-500' : 
+                                        apiStatus === 'testing' ? 'text-yellow-500' : 'text-gray-500'
+                                    }`}>
+                                        {apiStatus === 'idle' && 'Not Tested'}
+                                        {apiStatus === 'testing' && <><Loader2Icon className="animate-spin w-3 h-3 mr-1"/> Testing...</>}
+                                        {apiStatus === 'success' && 'Operational'}
+                                        {apiStatus === 'error' && 'Failed'}
+                                    </span>
+                                </div>
+                                
+                                {apiStatusMessage && (
+                                    <div className={`p-2 rounded mb-2 ${apiStatus === 'success' ? 'bg-green-900/20 text-green-400' : 'bg-red-900/20 text-red-400'}`}>
+                                        {apiStatusMessage}
+                                    </div>
+                                )}
+                            </div>
+                            
+                            <div className="flex space-x-2">
+                                <button 
+                                    onClick={testApiConnection}
+                                    disabled={apiStatus === 'testing'}
+                                    className={`flex-1 py-2 rounded text-xs font-medium transition-colors flex items-center justify-center ${
+                                        isDarkMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-800'
+                                    }`}
+                                >
+                                    Test Connection
+                                </button>
+                                <a 
+                                    href="https://github.com/" 
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className={`flex-1 py-2 rounded text-xs font-medium text-center transition-colors flex items-center justify-center ${
+                                        isDarkMode ? 'bg-blue-900/40 hover:bg-blue-900/60 text-blue-300' : 'bg-blue-100 hover:bg-blue-200 text-blue-800'
+                                    }`}
+                                >
+                                    <GithubIcon className="w-3 h-3 mr-1"/> Check Updates
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
             );
         };
