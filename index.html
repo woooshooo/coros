@@ -680,7 +680,8 @@
             const [apiError, setApiError] = useState('');
             
             // Hardcoded API Key: WARNING - EXPOSED CLIENT-SIDE
-            const [apiKey] = useState("AIzaSyBqOJyZecfmrTox2riZdHpFSNFXB_VMono"); 
+            const API_KEY_PLACEHOLDER = "AIzaSyBqOJyZecfmrTox2riZdHpFSNFXB_VMono";
+            const [apiKey] = useState(API_KEY_PLACEHOLDER);
             
             const [filterType, setFilterType] = useState('All'); 
             const [isInputExpanded, setIsInputExpanded] = useState(false); 
@@ -961,7 +962,7 @@
                         }
                     };
                     
-                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`; 
+                    apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${effectiveKey}`;
 
                     try {
                         let response;
