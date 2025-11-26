@@ -601,7 +601,7 @@
             const [apiStatusMessage, setApiStatusMessage] = useState('');
 
             // API Key is automatically injected in this environment. 
-            const [apiKey] = useState("AIzaSyD2UV0tz-Us3NMzAulblbJY7BuSPoW33f0"); 
+            const [apiKey] = useState(""); 
             
             const [filterType, setFilterType] = useState('All'); 
             const [isInputExpanded, setIsInputExpanded] = useState(false); 
@@ -812,7 +812,7 @@
                     return;
                 }
                 // Use apiKey from state, but in this env it might be empty, expecting internal injection or user manual entry if local
-                const effectiveKey = apiKey || ""; 
+                const effectiveKey = apiKey || "AIzaSyDf8KMJ6GJ8LhUAx2yfosGWy1FOYLMO_5Q"; 
                 
                 setIsLoading(true);
                 setApiError('');
