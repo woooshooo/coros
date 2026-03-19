@@ -588,7 +588,7 @@
         // --- Main Application Component ---
 
         const App = () => {
-            const GEMINI_MODEL_ID = "gemini-2.5-flash-preview-09-2025";
+            const GEMINI_MODEL_ID = "gemini-2.0-flash";
             
             const [laps, setLaps] = useState(getInitialLaps);
             const [newLap, setNewLap] = useState({ type: 'Run', distance: '', time: '' });
@@ -811,43 +811,46 @@
                     setApiError("Please upload an image first.");
                     return;
                 }
-                // Use apiKey from state, but in this env it might be empty, expecting internal injection or user manual entry if local
-                const effectiveKey = apiKey || "AIzaSyDf8KMJ6GJ8LhUAx2yfosGWy1FOYLMO_5Q"; 
+                
+                const effectiveKey = apiKey; 
                 
                 setIsLoading(true);
                 setApiError('');
                 
                 const reader = new FileReader();
                 reader.readAsDataURL(uploadedImage);
-
+            
                 reader.onloadend = async () => {
                     const base64Data = reader.result.split(',')[1];
                     const mimeType = uploadedImage.type;
                     
-                    const systemPrompt = `You are a data extraction expert. Your task is to extract the lap data (Lap Type, Distance in km, and Time) from the provided running stats image. Do NOT include the pace column or any total/summary rows. Use the exact type names found (e.g., 'Run', 'Rest', 'Warm Up', 'Cool Down', 'Freestyle', 'Breaststroke', 'Backstroke', 'Butterfly'). For time, preserve the original format as a string (e.g., 6:00.00). Provide the output as a JSON array strictly following the schema.`;
-                    const userQuery = "Extract the lap type, distance, and time for every row in the table visible in this image.";
+                    // Refined prompt for 2.0 Flash
+                    const systemPrompt = `You are a specialized OCR tool for running and swimming activities. 
+                    Extract Lap Type, Distance, and Time from the image. 
+                    Distance must be a number (km for running, meters converted to km for swimming). 
+                    Time must be a string format (e.g. "5:30.00"). 
+                    Return ONLY a JSON array. Do not include totals or summaries.`;
                     
                     const payload = {
-                        contents: [
-                            {
-                                role: "user",
-                                parts: [
-                                    { text: userQuery },
-                                    { inlineData: { mimeType: mimeType, data: base64Data } }
-                                ]
-                            }
-                        ],
+                        contents: [{
+                            role: "user",
+                            parts: [
+                                { text: "Extract all lap rows from this activity table into the requested JSON format." },
+                                { inlineData: { mimeType: mimeType, data: base64Data } }
+                            ]
+                        }],
                         systemInstruction: { parts: [{ text: systemPrompt }] },
                         generationConfig: {
                             responseMimeType: "application/json",
+                            // 2.0 models handle schema strictly
                             responseSchema: {
-                                type: "ARRAY",
+                                type: "array",
                                 items: {
-                                    type: "OBJECT",
+                                    type: "object",
                                     properties: {
-                                        "type": { "type": "STRING" },
-                                        "distance": { "type": "NUMBER" },
-                                        "time": { "type": "STRING" }
+                                        type: { type: "string" },
+                                        distance: { type: "number" },
+                                        time: { type: "string" }
                                     },
                                     required: ["type", "distance", "time"]
                                 }
@@ -855,28 +858,19 @@
                         }
                     };
                     
-                    // Updated Model Version (Using the constant now)
+                    // Using the v1beta endpoint which supports the latest 2.0 features
                     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL_ID}:generateContent?key=${effectiveKey}`; 
-
+            
                     try {
-                        let response;
-                        const maxRetries = 3;
-                        let delay = 1000;
-
-                        for (let i = 0; i < maxRetries; i++) {
-                            response = await fetch(apiUrl, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify(payload)
-                            });
-
-                            if (response.ok) break;
-                            if (i < maxRetries - 1) {
-                                await new Promise(resolve => setTimeout(resolve, delay));
-                                delay *= 2; 
-                            } else {
-                                throw new Error(`API failed after ${maxRetries} attempts.`);
-                            }
+                        const response = await fetch(apiUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+            
+                        if (!response.ok) {
+                            const errData = await response.json();
+                            throw new Error(errData.error?.message || "API Request Failed");
                         }
                         
                         const result = await response.json();
@@ -884,38 +878,32 @@
                         
                         if (jsonText) {
                             const extractedLaps = JSON.parse(jsonText);
-                            if (Array.isArray(extractedLaps)) {
-                                const containsSwim = extractedLaps.some(lap => SWIM_TYPES.includes(lap.type));
-                                if (containsSwim) {
-                                    setActivityType('SWIM');
-                                    setShowSwimFilters(true);
-                                }
-                                
-                                setLaps(prev => [
-                                    ...prev, 
-                                    ...extractedLaps.map(lap => ({
-                                        type: lap.type || 'Run',
-                                        distance: lap.distance ? lap.distance.toString() : '0',
-                                        time: lap.time || '0:00.00'
-                                    }))
-                                ]);
-                            } else {
-                                throw new Error("Extraction returned invalid data format.");
+                            
+                            // Detection for Activity Type
+                            const containsSwim = extractedLaps.some(lap => 
+                                ['Freestyle', 'Breaststroke', 'Backstroke', 'Butterfly'].includes(lap.type)
+                            );
+                            
+                            if (containsSwim) {
+                                setActivityType('SWIM');
+                                setShowSwimFilters(true);
                             }
-                        } else {
-                            throw new Error("Could not extract data from the image.");
+            
+                            setLaps(prev => [
+                                ...prev, 
+                                ...extractedLaps.map(lap => ({
+                                    type: lap.type || 'Run',
+                                    distance: lap.distance ? lap.distance.toString() : '0',
+                                    time: lap.time || '0:00.00'
+                                }))
+                            ]);
                         }
-
                     } catch (error) {
                         console.error("API Error:", error);
-                        setApiError(`Data extraction failed: ${error.message}.`);
+                        setApiError(`Failed: ${error.message}`);
                     } finally {
                         setIsLoading(false);
                     }
-                };
-                reader.onerror = () => {
-                    setIsLoading(false);
-                    setApiError("Error reading the image file.");
                 };
             };
             
